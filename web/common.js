@@ -160,7 +160,12 @@ function onSubmitPhone(e) {
     }
 
     setStatus('info', MESSAGES['sending-sms']);
-    $.post(CONF.API_ENDPOINT + 'send', {phone: phone, language: MESSAGES['lang']})
+    $.ajax({
+        url: CONF.API_ENDPOINT + 'send', 
+        type: "POST",
+        contentType: "application/json",
+        data: JSON.stringify({phone: phone, language: MESSAGES['lang']})
+    })
         .done(function(e) {
             console.log('sent SMS:', e);
             setStatus('success', MESSAGES['sms-sent']);
@@ -207,7 +212,12 @@ function onSubmitToken(e) {
     e.preventDefault();
     var token = $('#token-form input[type=text]').val().trim().toUpperCase();
     setStatus('info', MESSAGES['verifying-token']);
-    $.post(CONF.API_ENDPOINT + 'verify', {phone: phone, token: token})
+    $.ajax({
+        url: CONF.API_ENDPOINT + 'verify', 
+        type: "POST",
+        contentType: "application/json",
+        data: JSON.stringify({phone: phone, token: token})
+    })
         .done(function(jwt) {
             console.log('received JWT:', jwt);
             setStatus('info', MESSAGES['issuing-credential']);

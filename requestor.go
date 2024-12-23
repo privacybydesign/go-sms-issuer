@@ -57,7 +57,7 @@ func customSessionRequestJWT() (string, error) {
     return token.SignedString(privateKey)
 }
 
-func createSessionRequestJWT() (string, error) {
+func CreateSessionRequestJWT(phoneNumber string) (string, error) {
 	keyBytes, err := os.ReadFile(".secrets/private.pem")
 
 	if err != nil {
@@ -74,7 +74,7 @@ func createSessionRequestJWT() (string, error) {
 		{
 			CredentialTypeID: irma.NewCredentialTypeIdentifier("irma-demo.sidn-pbdf.mobilenumber"),
 			Attributes: map[string]string{
-				"mobilenumber": "0612345678",
+				"mobilenumber": phoneNumber,
 			},
 		},
 	})
@@ -92,7 +92,7 @@ func createSessionRequestJWT() (string, error) {
 func makeCreateSessionRequestWithJWT() error {
 	url := "http://localhost:8080/session"
 
-	jwt, err := createSessionRequestJWT()
+	jwt, err := CreateSessionRequestJWT("0612345678")
 
 	if err != nil {
 		return err
