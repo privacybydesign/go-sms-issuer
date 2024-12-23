@@ -7,10 +7,14 @@ import (
 )
 
 func startServer() {
-	fs := http.FileServer(http.Dir("./web"))
+	fs := http.FileServer(http.Dir("./web/build"))
 	http.Handle("/", fs)
+	http.HandleFunc("/send", handleSendSms)
 
-	http.HandleFunc("/send-sms", handleSendSms)
+    err := http.ListenAndServe(":8080", nil)
+    if err != nil {
+        ErrorLogger.Printf("failed to start server: %v", err)
+    }
 }
 
 type SendSmsPayload = struct {

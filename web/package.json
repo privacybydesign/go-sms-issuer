@@ -1,0 +1,13 @@
+{
+  "name": "irma_sms_webclient",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "./build.sh"
+  },
+  "dependencies": {
+    "@privacybydesign/yivi-frontend": "^0.1.2",
+    "jquery": "^3.6.4"
+  }
+}
