@@ -73,55 +73,7 @@ func NewServer(state ServerState, config ServerConfig) (*Server, error) {
 	}, nil
 }
 
-type VerifyPayload struct {
-	PhoneNumber string `json:"phone"`
-	Token       string `json:"token"`
-}
-
-func handleVerify(state ServerState, w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-	bodyContent, err := io.ReadAll(r.Body)
-
-	if err != nil {
-		errorWithMessage(w, http.StatusBadRequest, "failed to read body of verify request", err)
-		return
-	}
-
-	var body VerifyPayload
-	err = json.Unmarshal(bodyContent, &body)
-	if err != nil {
-		errorWithMessage(w, http.StatusBadRequest, "failed to parse body as json", err)
-		return
-	}
-
-	correctToken, err := state.tokenRepo.RetrieveToken(body.PhoneNumber)
-
-	if err != nil {
-		errorWithMessage(w, http.StatusBadRequest, "no active token request", err)
-		return
-	}
-
-	if body.Token != correctToken {
-		errorWithMessage(w, http.StatusUnauthorized, "token incorrect", err)
-		return
-	}
-
-	jwt, err := state.jwtCreator.CreateJwt(body.PhoneNumber)
-
-	if err != nil {
-		errorWithMessage(w, http.StatusInternalServerError, "failed to create JWT", err)
-		return
-	}
-
-	w.Write([]byte(jwt))
-	w.WriteHeader(http.StatusOK)
-
-	// can't really do anything about the error if it were to occur...
-	err = state.tokenRepo.RemoveToken(body.PhoneNumber)
-	if err != nil {
-		ErrorLogger.Printf("error while removing token: %v", err)
-	}
-}
+// -----------------------------------------------------------------------------------
 
 type SendSmsPayload struct {
 	PhoneNumber string `json:"phone"`
@@ -171,6 +123,60 @@ func handleSendSms(state ServerState, w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 }
+
+// -----------------------------------------------------------------------------------
+
+type VerifyPayload struct {
+	PhoneNumber string `json:"phone"`
+	Token       string `json:"token"`
+}
+
+func handleVerify(state ServerState, w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	bodyContent, err := io.ReadAll(r.Body)
+
+	if err != nil {
+		errorWithMessage(w, http.StatusBadRequest, "failed to read body of verify request", err)
+		return
+	}
+
+	var body VerifyPayload
+	err = json.Unmarshal(bodyContent, &body)
+	if err != nil {
+		errorWithMessage(w, http.StatusBadRequest, "failed to parse body as json", err)
+		return
+	}
+
+	expectedToken, err := state.tokenRepo.RetrieveToken(body.PhoneNumber)
+
+	if err != nil {
+		errorWithMessage(w, http.StatusBadRequest, "no active token request", err)
+		return
+	}
+
+	if body.Token != expectedToken {
+		errorWithMessage(w, http.StatusUnauthorized, "token incorrect", err)
+		return
+	}
+
+	jwt, err := state.jwtCreator.CreateJwt(body.PhoneNumber)
+
+	if err != nil {
+		errorWithMessage(w, http.StatusInternalServerError, "failed to create JWT", err)
+		return
+	}
+
+	w.Write([]byte(jwt))
+	w.WriteHeader(http.StatusOK)
+
+	// can't really do anything about the error if it were to occur...
+	err = state.tokenRepo.RemoveToken(body.PhoneNumber)
+	if err != nil {
+		ErrorLogger.Printf("error while removing token: %v", err)
+	}
+}
+
+// -----------------------------------------------------------------------------------
 
 func createSmsMessage(templates map[string]string, language string, token string) (string, error) {
 	if fmtString, ok := templates[language]; ok {
