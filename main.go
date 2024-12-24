@@ -2,38 +2,34 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"net/http"
+	"github.com/spf13/cobra"
 )
 
+var rootCmd = &cobra.Command{
+	Use:   "irma-sms-issuer",
+	Short: "The sms issuer for Yivi",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("cobra run in root cmd")
+	},
+}
+
 func main() {
-    startServer()
-	err := makeCreateSessionRequestWithJWT()
-	if err != nil {
-		fmt.Printf("error: %v\n", err)
+	config := ServerConfig{
+		Host: "127.0.0.1",
+		Port: 8080,
 	}
+
+	server := Server{
+		config:    config,
+		tokenRepo: NewInMemoryTokenRepo(),
+		smsSender: &CmSmsSender{
+			From:         "",
+			ApiEndpoint:  "",
+			ProductToken: "",
+			Reference:    "",
+			SmsTemplates: map[string]string{},
+		},
+	}
+
+	StartServer(server)
 }
-
-func getPublicKey() {
-	url := "https://is.staging.yivi.app/publickey"
-	resp, err := http.Get(url)
-
-	if err != nil {
-		fmt.Printf("error making request: %v\n", err)
-		return
-	}
-
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-
-	if err != nil {
-		fmt.Printf("Error reading body: %v", err)
-		return
-	}
-
-	bodyStr := string(body)
-
-	fmt.Printf("Got response:\n%v\n", bodyStr)
-}
-
