@@ -17,7 +17,7 @@ func NewDefaultJwtCreator(privateKeyPath string,
 	crediential string,
 	attribute string,
 ) (*DefaultJwtCreator, error) {
-	keyBytes, err := os.ReadFile(".secrets/private.pem")
+	keyBytes, err := os.ReadFile(privateKeyPath)
 
 	if err != nil {
 		return nil, err

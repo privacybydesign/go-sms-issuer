@@ -1,17 +1,11 @@
 package main
 
 import (
-	"fmt"
-	"github.com/spf13/cobra"
+	"encoding/json"
+	"flag"
+	"io"
+	"os"
 )
-
-var rootCmd = &cobra.Command{
-	Use:   "irma-sms-issuer",
-	Short: "The sms issuer for Yivi",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("cobra run in root cmd")
-	},
-}
 
 type Config struct {
 	ServerConfig ServerConfig `json:"server_config"`
@@ -26,29 +20,23 @@ type Config struct {
 }
 
 func main() {
-	config := Config{
-		ServerConfig: ServerConfig{
-			Host:           "127.0.0.1",
-			Port:           8080,
-			UseTls:         false,
-			TlsPrivKeyPath: "",
-			TlsCertPath:    "",
-		},
-		JwtPrivateKeyPath: ".secrets/private.pem",
-		IssuerId:          "sms_issuer",
-		FullCredential:    "irma-demo.sidn-pbdf.mobilenumber",
-		Attribute:         "mobilenumber",
-		SmsTemplates: map[string]string{
-			"en": "Yivi verification code: %s\nOr directly via a link:\nhttps://sms-issuer.staging.yivi.app/en/#!verify:%s",
-			"nl": "Yivi verificatiecode: %s\nOf direct via een link:\nhttps://sms-issuer.staging.yivi.app/nl/#!verify:%s",
-		},
-		CmSmsSenderConfig: CmSmsSenderConfig{
-			From:         "",
-			ApiEndpoint:  "",
-			ProductToken: "",
-			Reference:    "",
-		},
-	}
+    configPath := flag.String("config", "", "Path for the config.json to use")
+
+    flag.Parse()
+
+    if *configPath == "" {
+        ErrorLogger.Fatal("please provide a config path using the --config flag")
+    }
+
+    InfoLogger.Printf("using config: %v", *configPath)
+
+    config, err := readConfigFile(*configPath)
+
+    if err != nil {
+        ErrorLogger.Fatalf("failed to read config file: %v", err)
+    }
+
+    InfoLogger.Printf("hosting on: %v:%v", config.ServerConfig.Host, config.ServerConfig.Port)
 
 	jwtCreator, err := NewDefaultJwtCreator(
 		config.JwtPrivateKeyPath,
@@ -72,12 +60,35 @@ func main() {
 	server, err := NewServer(deps, config.ServerConfig)
 
 	if err != nil {
-		ErrorLogger.Fatalf("failed to instantiate jwt creator: %v", err)
+		ErrorLogger.Fatalf("failed to create server: %v", err)
 	}
 
 	err = server.ListenAndServe()
 
 	if err != nil {
-		ErrorLogger.Fatalf("failed to instantiate jwt creator: %v", err)
+		ErrorLogger.Fatalf("failed to listen and serve: %v", err)
 	}
+}
+
+func readConfigFile(path string) (Config, error) {
+    configFile, err := os.Open(path)
+
+    if err != nil  {
+        return Config{}, err
+    }
+
+    configContent, err := io.ReadAll(configFile)
+
+    if err != nil {
+        return Config{}, err
+    }
+
+    var config Config
+    err = json.Unmarshal([]byte(configContent), &config)
+
+    if err != nil {
+        return Config{}, err
+    }
+
+    return config, nil
 }
