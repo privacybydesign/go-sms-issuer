@@ -20,23 +20,23 @@ type Config struct {
 }
 
 func main() {
-    configPath := flag.String("config", "", "Path for the config.json to use")
+	configPath := flag.String("config", "", "Path for the config.json to use")
 
-    flag.Parse()
+	flag.Parse()
 
-    if *configPath == "" {
-        ErrorLogger.Fatal("please provide a config path using the --config flag")
-    }
+	if *configPath == "" {
+		ErrorLogger.Fatal("please provide a config path using the --config flag")
+	}
 
-    InfoLogger.Printf("using config: %v", *configPath)
+	InfoLogger.Printf("using config: %v", *configPath)
 
-    config, err := readConfigFile(*configPath)
+	config, err := readConfigFile(*configPath)
 
-    if err != nil {
-        ErrorLogger.Fatalf("failed to read config file: %v", err)
-    }
+	if err != nil {
+		ErrorLogger.Fatalf("failed to read config file: %v", err)
+	}
 
-    InfoLogger.Printf("hosting on: %v:%v", config.ServerConfig.Host, config.ServerConfig.Port)
+	InfoLogger.Printf("hosting on: %v:%v", config.ServerConfig.Host, config.ServerConfig.Port)
 
 	jwtCreator, err := NewDefaultJwtCreator(
 		config.JwtPrivateKeyPath,
@@ -55,6 +55,7 @@ func main() {
 		jwtCreator:     jwtCreator,
 		tokenGenerator: &RandomTokenGenerator{},
 		smsTemplates:   config.SmsTemplates,
+		rateLimiter:    &DefaultRateLimiter{},
 	}
 
 	server, err := NewServer(serverState, config.ServerConfig)
@@ -71,24 +72,24 @@ func main() {
 }
 
 func readConfigFile(path string) (Config, error) {
-    configFile, err := os.Open(path)
+	configFile, err := os.Open(path)
 
-    if err != nil  {
-        return Config{}, err
-    }
+	if err != nil {
+		return Config{}, err
+	}
 
-    configContent, err := io.ReadAll(configFile)
+	configContent, err := io.ReadAll(configFile)
 
-    if err != nil {
-        return Config{}, err
-    }
+	if err != nil {
+		return Config{}, err
+	}
 
-    var config Config
-    err = json.Unmarshal([]byte(configContent), &config)
+	var config Config
+	err = json.Unmarshal([]byte(configContent), &config)
 
-    if err != nil {
-        return Config{}, err
-    }
+	if err != nil {
+		return Config{}, err
+	}
 
-    return config, nil
+	return config, nil
 }

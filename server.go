@@ -5,9 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 )
+
+// same error message bodies as the old Java code
+const ErrorPhoneNumberFormat = "error:phone-number-format"
+const ErrorRateLimit = "error:ratelimit"
+const ErrorCannotValidateToken = "error:cannot-validate-token"
+const ErrorAddressMalformed = "error:address-malformed"
+const ErrorInternal = "error:internal"
+const ErrorSendingSms = "error:sending-sms"
 
 type ServerConfig struct {
 	Host           string `json:"host"`
@@ -17,13 +26,13 @@ type ServerConfig struct {
 	TlsCertPath    string `json:"tls_cert_path,omitempty"`
 }
 
-// dependencies for the server
 type ServerState struct {
 	tokenRepo      TokenRepository
 	smsSender      SmsSender
 	jwtCreator     JwtCreator
 	tokenGenerator TokenGenerator
 	smsTemplates   map[string]string
+	rateLimiter    RateLimiter
 }
 
 type Server struct {
@@ -86,7 +95,7 @@ func handleSendSms(state ServerState, w http.ResponseWriter, r *http.Request) {
 	bodyContent, err := io.ReadAll(r.Body)
 
 	if err != nil {
-		errorWithMessage(w, http.StatusBadRequest, "failed to read body of send-sms request", err)
+		errorWithMessage(w, http.StatusBadRequest, ErrorInternal, "failed to read body of send-sms request", err)
 		return
 	}
 
@@ -94,8 +103,16 @@ func handleSendSms(state ServerState, w http.ResponseWriter, r *http.Request) {
 	err = json.Unmarshal(bodyContent, &body)
 
 	if err != nil {
-		errorWithMessage(w, http.StatusBadRequest, "failed to parse json for body of send-sms request", err)
+		errorWithMessage(w, http.StatusBadRequest, ErrorInternal, "failed to parse json for body of send-sms request", err)
 		return
+	}
+
+	ip := getIpAddressForRequest(r)
+	timeout := state.rateLimiter.GetTimeoutSecsFor(ip, body.PhoneNumber)
+
+	if timeout > 0.0 {
+		errorWithMessage(w, http.StatusTooManyRequests, ErrorRateLimit, "too many requests", err)
+		w.Header().Add("Retry-After", fmt.Sprintf("%f", timeout))
 	}
 
 	token := state.tokenGenerator.GenerateToken()
@@ -103,21 +120,21 @@ func handleSendSms(state ServerState, w http.ResponseWriter, r *http.Request) {
 	err = state.tokenRepo.StoreToken(body.PhoneNumber, token)
 
 	if err != nil {
-		errorWithMessage(w, http.StatusInternalServerError, "failed to store token internally", err)
+		errorWithMessage(w, http.StatusInternalServerError, ErrorInternal, "failed to store token", err)
 		return
 	}
 
 	message, err := createSmsMessage(state.smsTemplates, body.Language, token)
 
 	if err != nil {
-		errorWithMessage(w, http.StatusBadRequest, "failed to construct sms message", err)
+		errorWithMessage(w, http.StatusBadRequest, ErrorInternal, "failed to create sms", err)
 		return
 	}
 
 	err = state.smsSender.SendSms(body.PhoneNumber, message)
 
 	if err != nil {
-		errorWithMessage(w, http.StatusInternalServerError, "failed to send sms", err)
+		errorWithMessage(w, http.StatusInternalServerError, ErrorSendingSms, "failed to send sms", err)
 		return
 	}
 
@@ -136,33 +153,33 @@ func handleVerify(state ServerState, w http.ResponseWriter, r *http.Request) {
 	bodyContent, err := io.ReadAll(r.Body)
 
 	if err != nil {
-		errorWithMessage(w, http.StatusBadRequest, "failed to read body of verify request", err)
+		errorWithMessage(w, http.StatusBadRequest, ErrorInternal, "failed to read body of verify request", err)
 		return
 	}
 
 	var body VerifyPayload
 	err = json.Unmarshal(bodyContent, &body)
 	if err != nil {
-		errorWithMessage(w, http.StatusBadRequest, "failed to parse body as json", err)
+		errorWithMessage(w, http.StatusBadRequest, ErrorInternal, "failed to parse body as json", err)
 		return
 	}
 
 	expectedToken, err := state.tokenRepo.RetrieveToken(body.PhoneNumber)
 
 	if err != nil {
-		errorWithMessage(w, http.StatusBadRequest, "no active token request", err)
+		errorWithMessage(w, http.StatusBadRequest, ErrorCannotValidateToken, "no active token request", err)
 		return
 	}
 
 	if body.Token != expectedToken {
-		errorWithMessage(w, http.StatusUnauthorized, "token incorrect", err)
+		errorWithMessage(w, http.StatusUnauthorized, ErrorCannotValidateToken, "token incorrect", err)
 		return
 	}
 
 	jwt, err := state.jwtCreator.CreateJwt(body.PhoneNumber)
 
 	if err != nil {
-		errorWithMessage(w, http.StatusInternalServerError, "failed to create JWT", err)
+		errorWithMessage(w, http.StatusInternalServerError, ErrorInternal, "failed to create JWT", err)
 		return
 	}
 
@@ -178,6 +195,14 @@ func handleVerify(state ServerState, w http.ResponseWriter, r *http.Request) {
 
 // -----------------------------------------------------------------------------------
 
+func getIpAddressForRequest(r *http.Request) string {
+	ip := r.Header.Get("X-Real-IP")
+	if ip == "" {
+		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
+	}
+	return ip
+}
+
 func createSmsMessage(templates map[string]string, language string, token string) (string, error) {
 	if fmtString, ok := templates[language]; ok {
 		return fmt.Sprintf(fmtString, token), nil
@@ -187,9 +212,9 @@ func createSmsMessage(templates map[string]string, language string, token string
 	}
 }
 
-func errorWithMessage(w http.ResponseWriter, code int, message string, e error) {
-	m := fmt.Sprintf(message+":", e)
-	ErrorLogger.Printf("%s\n -> returning statuscode %d", m, code)
+func errorWithMessage(w http.ResponseWriter, code int, responseBody string, log string, e error) {
+	m := fmt.Sprintf(log+":", e)
+	ErrorLogger.Printf("%s\n -> returning statuscode %d with message %v", m, code, responseBody)
 	w.WriteHeader(code)
-	w.Write([]byte(m))
+	w.Write([]byte(responseBody))
 }

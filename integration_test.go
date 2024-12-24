@@ -12,6 +12,11 @@ import (
 // for testing purposes it's useful to have a static token
 const testToken = "123456"
 
+func TestRateLimiting(t *testing.T) {
+	server := createAndStartTestServer(t, nil)
+	defer server.Stop()
+}
+
 func TestUnsupportedLanguageFails(t *testing.T) {
 	server := createAndStartTestServer(t, nil)
 	defer server.Stop()
@@ -194,6 +199,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
 		smsTemplates: map[string]string{
 			"en": "your token: %v",
 		},
+		rateLimiter: &DefaultRateLimiter{},
 	}
 
 	config := ServerConfig{
