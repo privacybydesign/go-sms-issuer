@@ -11,6 +11,6 @@ var (
 )
 
 func init() {
-    InfoLogger = log.New(os.Stderr, "INFO: ", log.Ldate | log.Ltime | log.Lshortfile)
-    ErrorLogger = log.New(os.Stderr, "ERROR: ", log.Ldate | log.Ltime | log.Lshortfile)
+	InfoLogger = log.New(os.Stderr, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
+	ErrorLogger = log.New(os.Stderr, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
 }

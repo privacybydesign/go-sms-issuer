@@ -46,15 +46,14 @@ func customSessionRequestJWT() (string, error) {
 		return "", err
 	}
 
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+		"iat":       time.Now().String(),
+		"iss":       "sms_issuer",
+		"sub":       "issue_request",
+		"iprequest": string(sessionRequestBody),
+	})
 
-    token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims {
-        "iat": time.Now().String(),
-        "iss": "sms_issuer",
-        "sub": "issue_request",
-        "iprequest":  string(sessionRequestBody),
-    })
-
-    return token.SignedString(privateKey)
+	return token.SignedString(privateKey)
 }
 
 func CreateSessionRequestJWT(phoneNumber string) (string, error) {

@@ -1,39 +1,76 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 type ServerConfig struct {
-	Port int
-	Host string
+	Host           string `json:"host"`
+	Port           int    `json:"port"`
+	UseTls         bool   `json:"use_tls,omitempty"`
+	TlsPrivKeyPath string `json:"tls_priv_key_path,omitempty"`
+	TlsCertPath    string `json:"tls_cert_path,omitempty"`
+}
+
+// dependencies for the server
+type ServerState struct {
+	tokenRepo      TokenRepository
+	smsSender      SmsSender
+	jwtCreator     JwtCreator
+	tokenGenerator TokenGenerator
+	smsTemplates   map[string]string
 }
 
 type Server struct {
-	config    ServerConfig
-	tokenRepo TokenRepository
-	smsSender SmsSender
+	server *http.Server
+	config ServerConfig
 }
 
-func StartServer(server Server) {
-	fs := http.FileServer(http.Dir("./web/build"))
-	http.Handle("/", fs)
-	http.HandleFunc("/send", func(w http.ResponseWriter, r *http.Request) {
-		handleSendSms(server, w, r)
-	})
-	http.HandleFunc("/verify", func(w http.ResponseWriter, r *http.Request) {
-		handleVerify(server, w, r)
-	})
-
-	addr := fmt.Sprintf("%v:%v", server.config.Host, server.config.Port)
-	err := http.ListenAndServe(addr, nil)
-
-	if err != nil {
-		ErrorLogger.Fatalf("failed to start server: %v", err)
+func (s *Server) ListenAndServe() error {
+	if s.config.UseTls {
+		return s.server.ListenAndServeTLS(s.config.TlsCertPath, s.config.TlsPrivKeyPath)
+	} else {
+		return s.server.ListenAndServe()
 	}
+}
+
+func (s *Server) Stop() error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	return s.server.Shutdown(ctx)
+}
+
+func NewServer(state ServerState, config ServerConfig) (*Server, error) {
+	// static file server for the web part on the root
+	fs := http.FileServer(http.Dir("./web/build"))
+
+	mux := http.NewServeMux()
+
+	mux.Handle("/", fs)
+
+	// api to handle validating the phone number
+	mux.HandleFunc("/send", func(w http.ResponseWriter, r *http.Request) {
+		handleSendSms(state, w, r)
+	})
+	mux.HandleFunc("/verify", func(w http.ResponseWriter, r *http.Request) {
+		handleVerify(state, w, r)
+	})
+
+	addr := fmt.Sprintf("%v:%v", config.Host, config.Port)
+	server := &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+
+	return &Server{
+		server: server,
+		config: config,
+	}, nil
 }
 
 type VerifyPayload struct {
@@ -41,14 +78,7 @@ type VerifyPayload struct {
 	Token       string `json:"token"`
 }
 
-func errorWithMessage(w http.ResponseWriter, code int, message string, e error) {
-	m := fmt.Sprintf(message+":", e)
-	ErrorLogger.Printf("%s\n -> returning statuscode %d", m, code)
-	w.WriteHeader(code)
-	w.Write([]byte(m))
-}
-
-func handleVerify(server Server, w http.ResponseWriter, r *http.Request) {
+func handleVerify(state ServerState, w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	bodyContent, err := io.ReadAll(r.Body)
 
@@ -64,7 +94,7 @@ func handleVerify(server Server, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	correctToken, err := server.tokenRepo.RetrieveToken(body.PhoneNumber)
+	correctToken, err := state.tokenRepo.RetrieveToken(body.PhoneNumber)
 
 	if err != nil {
 		errorWithMessage(w, http.StatusBadRequest, "no active token request", err)
@@ -76,7 +106,7 @@ func handleVerify(server Server, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jwt, err := CreateSessionRequestJWT(body.PhoneNumber)
+	jwt, err := state.jwtCreator.CreateJwt(body.PhoneNumber)
 
 	if err != nil {
 		errorWithMessage(w, http.StatusInternalServerError, "failed to create JWT", err)
@@ -87,7 +117,7 @@ func handleVerify(server Server, w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	// can't really do anything about the error if it were to occur...
-	err = server.tokenRepo.RemoveToken(body.PhoneNumber)
+	err = state.tokenRepo.RemoveToken(body.PhoneNumber)
 	if err != nil {
 		ErrorLogger.Printf("error while removing token: %v", err)
 	}
@@ -98,7 +128,7 @@ type SendSmsPayload struct {
 	Language    string `json:"language"`
 }
 
-func handleSendSms(server Server, w http.ResponseWriter, r *http.Request) {
+func handleSendSms(state ServerState, w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	bodyContent, err := io.ReadAll(r.Body)
@@ -116,16 +146,23 @@ func handleSendSms(server Server, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := generateToken()
+	token := state.tokenGenerator.GenerateToken()
 
-	err = server.tokenRepo.StoreToken(body.PhoneNumber, token)
+	err = state.tokenRepo.StoreToken(body.PhoneNumber, token)
 
 	if err != nil {
 		errorWithMessage(w, http.StatusInternalServerError, "failed to store token internally", err)
 		return
 	}
 
-	err = server.smsSender.SendSms(body.PhoneNumber, body.Language, token)
+	message, err := createSmsMessage(state.smsTemplates, body.Language, token)
+
+	if err != nil {
+		errorWithMessage(w, http.StatusBadRequest, "failed to construct sms message", err)
+		return
+	}
+
+	err = state.smsSender.SendSms(body.PhoneNumber, message)
 
 	if err != nil {
 		errorWithMessage(w, http.StatusInternalServerError, "failed to send sms", err)
@@ -135,6 +172,18 @@ func handleSendSms(server Server, w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func generateToken() string {
-	return "123456"
+func createSmsMessage(templates map[string]string, language string, token string) (string, error) {
+	if fmtString, ok := templates[language]; ok {
+		return fmt.Sprintf(fmtString, token), nil
+	} else {
+		err := fmt.Errorf("no template for language '%v'", language)
+		return "", err
+	}
+}
+
+func errorWithMessage(w http.ResponseWriter, code int, message string, e error) {
+	m := fmt.Sprintf(message+":", e)
+	ErrorLogger.Printf("%s\n -> returning statuscode %d", m, code)
+	w.WriteHeader(code)
+	w.Write([]byte(m))
 }
