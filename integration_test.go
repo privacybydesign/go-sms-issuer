@@ -9,6 +9,9 @@ import (
 	"testing"
 )
 
+// for testing purposes it's useful to have a static token
+const testToken = "123456"
+
 func TestUnsupportedLanguageFails(t *testing.T) {
 	server := createAndStartTestServer(t, nil)
 	defer server.Stop()
@@ -49,7 +52,7 @@ func TestSmsIsBeingSent(t *testing.T) {
 	if sms.phone != phone {
 		t.Fatalf("not sending sms to correct phone number: %v instead of %v", sms.phone, phone)
 	}
-	if !strings.Contains(sms.message, "123456") {
+	if !strings.Contains(sms.message, testToken) {
 		t.Fatalf("sms message doesn't contain token: %v", sms.message)
 	}
 }
@@ -60,7 +63,7 @@ func TestVerifyWrongPhoneNumberFails(t *testing.T) {
 
 	phone := "+31612345678"
 
-	resp, err := makeVerifyRequest(phone, "123456")
+	resp, err := makeVerifyRequest(phone, testToken)
 	if err != nil {
 		t.Fatalf("failed to send verify request")
 	}
@@ -121,7 +124,7 @@ func TestSendingSendRequest(t *testing.T) {
 		t.Fatalf("send-sms response status code not ok: %v", resp.StatusCode)
 	}
 
-	resp, err = makeVerifyRequest(phone, "123456")
+	resp, err = makeVerifyRequest(phone, testToken)
 
 	if err != nil {
 		t.Fatalf("verify request failed: %v", err)
@@ -187,7 +190,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
 		tokenRepo:      NewInMemoryTokenRepo(),
 		smsSender:      smsSender,
 		jwtCreator:     &mockJwtCreator{},
-		tokenGenerator: &DefaultTokenGenerator{},
+		tokenGenerator: &StaticTokenGenerator{token: testToken},
 		smsTemplates: map[string]string{
 			"en": "your token: %v",
 		},

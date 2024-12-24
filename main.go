@@ -49,15 +49,15 @@ func main() {
 		ErrorLogger.Fatalf("failed to instantiate jwt creator: %v", err)
 	}
 
-	deps := ServerState{
+	serverState := ServerState{
 		tokenRepo:      NewInMemoryTokenRepo(),
 		smsSender:      &CmSmsSender{config.CmSmsSenderConfig},
 		jwtCreator:     jwtCreator,
-		tokenGenerator: &DefaultTokenGenerator{},
+		tokenGenerator: &RandomTokenGenerator{},
 		smsTemplates:   config.SmsTemplates,
 	}
 
-	server, err := NewServer(deps, config.ServerConfig)
+	server, err := NewServer(serverState, config.ServerConfig)
 
 	if err != nil {
 		ErrorLogger.Fatalf("failed to create server: %v", err)
