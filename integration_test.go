@@ -5,31 +5,77 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 )
 
-func TestWrongPhoneNumberFails(t *testing.T) {
-	server := createAndStartTestServer(t)
+func TestUnsupportedLanguageFails(t *testing.T) {
+	server := createAndStartTestServer(t, nil)
 	defer server.Stop()
 
-    phone := "+31612345678"
+	phone := "+31687654321"
 
-    resp, err := makeVerifyRequest(phone, "123456")
-    if err != nil {
-        t.Fatalf("failed to send verify request")
-    }
+	resp, err := makeSendSmsRequest(phone, "fr")
+	if err != nil {
+		t.Fatalf("failed to send sms request: %v", err)
+	}
 
-    if resp.StatusCode != http.StatusBadRequest {
+	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf(
 			"status code was expected to be %v (BadRequest), but was %v",
 			http.StatusBadRequest,
 			resp.StatusCode,
 		)
-    }
+	}
+}
+
+func TestSmsIsBeingSent(t *testing.T) {
+	// channel must be buffered
+	smsReceiver := make(chan smsMessage, 1)
+	server := createAndStartTestServer(t, &smsReceiver)
+	defer server.Stop()
+
+	phone := "+31687654321"
+
+	resp, err := makeSendSmsRequest(phone, "en")
+	if err != nil {
+		t.Fatalf("failed to send sms request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("response not ok: %v", resp.StatusCode)
+	}
+
+	sms := <-smsReceiver
+	if sms.phone != phone {
+		t.Fatalf("not sending sms to correct phone number: %v instead of %v", sms.phone, phone)
+	}
+	if !strings.Contains(sms.message, "123456") {
+		t.Fatalf("sms message doesn't contain token: %v", sms.message)
+	}
+}
+
+func TestVerifyWrongPhoneNumberFails(t *testing.T) {
+	server := createAndStartTestServer(t, nil)
+	defer server.Stop()
+
+	phone := "+31612345678"
+
+	resp, err := makeVerifyRequest(phone, "123456")
+	if err != nil {
+		t.Fatalf("failed to send verify request")
+	}
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf(
+			"status code was expected to be %v (BadRequest), but was %v",
+			http.StatusBadRequest,
+			resp.StatusCode,
+		)
+	}
 }
 
 func TestWrongTokenFails(t *testing.T) {
-	server := createAndStartTestServer(t)
+	server := createAndStartTestServer(t, nil)
 	defer server.Stop()
 
 	phone := "+31612345678"
@@ -52,7 +98,7 @@ func TestWrongTokenFails(t *testing.T) {
 
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf(
-			"status code was expected to be %v (unauthorized), but was %v",
+			"status code was expected to be %v (Unauthorized), but was %v",
 			http.StatusUnauthorized,
 			resp.StatusCode,
 		)
@@ -60,7 +106,7 @@ func TestWrongTokenFails(t *testing.T) {
 }
 
 func TestSendingSendRequest(t *testing.T) {
-	server := createAndStartTestServer(t)
+	server := createAndStartTestServer(t, nil)
 	defer server.Stop()
 
 	phone := "+31612345678"
@@ -102,17 +148,29 @@ func readCompleteBodyToString(r *http.Response) (string, error) {
 	return string(bytes), nil
 }
 
-type mockSmsSender struct {
-	sent map[string]string
+// message sent by the sms sender
+type smsMessage struct {
+	phone, message string
 }
 
-func newMockSmsSender() *mockSmsSender {
+type mockSmsSender struct {
+	sendTo *chan smsMessage
+}
+
+func newMockSmsSender(ch *chan smsMessage) *mockSmsSender {
 	return &mockSmsSender{
-		sent: make(map[string]string),
+		sendTo: ch,
 	}
 }
 
-func (m *mockSmsSender) SendSms(phone, message string) error {
+func (m *mockSmsSender) SendSms(phone, mess string) error {
+	if m.sendTo == nil {
+		return nil
+	}
+	msg := smsMessage{
+		phone: phone, message: mess,
+	}
+	(*m.sendTo) <- msg
 	return nil
 }
 
@@ -122,8 +180,8 @@ func (m *mockJwtCreator) CreateJwt(phone string) (string, error) {
 	return "JWT", nil
 }
 
-func createAndStartTestServer(t *testing.T) *Server {
-	smsSender := newMockSmsSender()
+func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
+	smsSender := newMockSmsSender(smsChan)
 
 	state := ServerState{
 		tokenRepo:      NewInMemoryTokenRepo(),
