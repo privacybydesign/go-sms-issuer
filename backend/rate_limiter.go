@@ -6,11 +6,39 @@ import (
 	"time"
 )
 
-type RateLimiter struct {
+type InMemoryRateLimiterStorage struct {
 	mu     sync.Mutex
 	limits map[string]*Client
-	clock  Clock
-	policy func(attempts int) time.Duration
+}
+
+func NewInMemoryRateLimiterStorage() *InMemoryRateLimiterStorage {
+	return &InMemoryRateLimiterStorage{
+		limits: make(map[string]*Client),
+	}
+}
+
+func (s *InMemoryRateLimiterStorage) GetClient(ip, phone string) *Client {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	key := fmt.Sprintf("%v&%v", ip, phone)
+
+	if _, exists := s.limits[key]; !exists {
+		s.limits[key] = &Client{
+			numRequests: 0,
+		}
+	}
+	return s.limits[key]
+}
+
+type RateLimiterStorage interface {
+	GetClient(ip, phone string) *Client
+}
+
+type RateLimiter struct {
+	storage RateLimiterStorage
+	clock   Clock
+	policy  func(attempts int) time.Duration
 }
 
 type Client struct {
@@ -22,21 +50,18 @@ type Client struct {
 // timeout policy determines what timeout you get after how many requests
 type TimeoutPolicy func(numRequests int) time.Duration
 
-func NewRateLimiter(clock Clock, policy TimeoutPolicy) *RateLimiter {
+func NewRateLimiter(storage RateLimiterStorage, clock Clock, policy TimeoutPolicy) *RateLimiter {
 	return &RateLimiter{
-		limits: make(map[string]*Client),
-		clock:  clock,
-		policy: policy,
+		storage: storage,
+		clock:   clock,
+		policy:  policy,
 	}
 }
 
 // returns whether the request made by the ip & phone combo is allowed at this moment
 // if it's now allowed it will also return the timeout duration remaining
 func (r *RateLimiter) Allow(ip, phone string) (allow bool, timeout time.Duration) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	client := r.getClient(ip, phone)
+	client := r.storage.GetClient(ip, phone)
 	now := r.clock.GetTime()
 
 	// tries is 3 or higher
@@ -54,17 +79,6 @@ func (r *RateLimiter) Allow(ip, phone string) (allow bool, timeout time.Duration
 		client.timeoutDuration = r.policy(client.numRequests)
 		return true, 0
 	}
-}
-
-func (r *RateLimiter) getClient(ip, phone string) *Client {
-	key := fmt.Sprintf("%v&%v", ip, phone)
-
-	if _, exists := r.limits[key]; !exists {
-		r.limits[key] = &Client{
-			numRequests: 0,
-		}
-	}
-	return r.limits[key]
 }
 
 func DefaultTimeoutPolicy(tries int) time.Duration {

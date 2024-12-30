@@ -30,7 +30,7 @@ func TestRateLimitingSingleClient(t *testing.T) {
 	}
 
 	// third request should be getting rate limited
-    resp, err := makeSendSmsRequest(phone, "en")
+	resp, err := makeSendSmsRequest(phone, "en")
 	if err != nil {
 		t.Fatalf("failed to send sms request: %v", err)
 	}
@@ -221,7 +221,11 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
 		smsTemplates: map[string]string{
 			"en": "your token: %v",
 		},
-		rateLimiter: NewRateLimiter(NewSystemClock(), DefaultTimeoutPolicy),
+		rateLimiter: NewRateLimiter(
+			NewInMemoryRateLimiterStorage(),
+			NewSystemClock(),
+			DefaultTimeoutPolicy,
+		),
 	}
 
 	config := ServerConfig{

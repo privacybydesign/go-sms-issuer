@@ -7,7 +7,7 @@ import (
 
 func TestRateLimiterForMultipleClients(t *testing.T) {
 	clock := &mockClock{time: time.Now()}
-	rl := NewRateLimiter(clock, DefaultTimeoutPolicy)
+	rl := NewRateLimiter(NewInMemoryRateLimiterStorage(), clock, DefaultTimeoutPolicy)
 
 	ips := []string{"127.0.0.1", "127.0.0.2", "127.0.0.3"}
 	phones := []string{"+31612345678", "+31612345679", "+31612345677"}
@@ -72,7 +72,7 @@ func TestRateLimiterForMultipleClients(t *testing.T) {
 func TestRateLimiter(t *testing.T) {
 	clock := &mockClock{time: time.Now()}
 
-	rl := NewRateLimiter(clock, DefaultTimeoutPolicy)
+	rl := NewRateLimiter(NewInMemoryRateLimiterStorage(), clock, DefaultTimeoutPolicy)
 
 	ip := "127.0.0.1"
 	phone := "+31612345678"
