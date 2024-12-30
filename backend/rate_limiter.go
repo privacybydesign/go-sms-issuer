@@ -6,31 +6,68 @@ import (
 	"time"
 )
 
-// rate limiting policy
-type RateLimiter interface {
-	Allow(ip, phone string) (allow bool, timeout time.Duration)
-}
-
-type DefaultRateLimiter struct {
+type RateLimiter struct {
 	mu     sync.Mutex
-	limits map[string]*ClientLimiter
+	limits map[string]*Client
 	clock  Clock
+	policy func(attempts int) time.Duration
 }
 
-type ClientLimiter struct {
-	tries           int
+type Client struct {
+	numRequests     int
 	timeoutDuration time.Duration
 	lastRequest     time.Time
 }
 
-func NewDefaultRateLimiter(clock Clock) *DefaultRateLimiter {
-	return &DefaultRateLimiter{
-		limits: make(map[string]*ClientLimiter),
+// timeout policy determines what timeout you get after how many requests
+type TimeoutPolicy func(numRequests int) time.Duration
+
+func NewRateLimiter(clock Clock, policy TimeoutPolicy) *RateLimiter {
+	return &RateLimiter{
+		limits: make(map[string]*Client),
 		clock:  clock,
+		policy: policy,
 	}
 }
 
-func getTimeout(tries int) time.Duration {
+// returns whether the request made by the ip & phone combo is allowed at this moment
+// if it's now allowed it will also return the timeout duration remaining
+func (r *RateLimiter) Allow(ip, phone string) (allow bool, timeout time.Duration) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	client := r.getClient(ip, phone)
+	now := r.clock.GetTime()
+
+	// tries is 3 or higher
+	timeSinceLastRequest := now.Sub(client.lastRequest)
+	remaining := client.timeoutDuration - timeSinceLastRequest
+
+	if remaining > 0 {
+		// the timeout is not over yet, don't increment the number of attempt,
+		// but also don't allow this one to pass and nofity about the remaining timeout
+		return false, remaining
+	} else {
+		// timeout is over, pass the request, but set a new timeout
+		client.numRequests += 1
+		client.lastRequest = now
+		client.timeoutDuration = r.policy(client.numRequests)
+		return true, 0
+	}
+}
+
+func (r *RateLimiter) getClient(ip, phone string) *Client {
+	key := fmt.Sprintf("%v&%v", ip, phone)
+
+	if _, exists := r.limits[key]; !exists {
+		r.limits[key] = &Client{
+			numRequests: 0,
+		}
+	}
+	return r.limits[key]
+}
+
+func DefaultTimeoutPolicy(tries int) time.Duration {
 	if tries < 3 {
 		return 0
 	}
@@ -44,41 +81,6 @@ func getTimeout(tries int) time.Duration {
 		return time.Hour
 	}
 	return 24 * time.Hour
-}
-
-func (r *DefaultRateLimiter) Allow(ip, phone string) (allow bool, timeout time.Duration) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	client := r.getClientLimiter(ip, phone)
-	now := r.clock.GetTime()
-
-	// tries is 3 or higher
-	timeSinceLastRequest := now.Sub(client.lastRequest)
-	remaining := client.timeoutDuration - timeSinceLastRequest
-
-	if remaining > 0 {
-		// the timeout is not over yet, don't increment the number of attempt,
-		// but also don't allow this one to pass and nofity about the remaining timeout
-		return false, remaining
-	} else {
-		// timeout is over, pass the request, but set a new timeout
-		client.tries += 1
-		client.lastRequest = now
-		client.timeoutDuration = getTimeout(client.tries)
-		return true, 0
-	}
-}
-
-func (r *DefaultRateLimiter) getClientLimiter(ip, phone string) *ClientLimiter {
-	key := fmt.Sprintf("%v&%v", ip, phone)
-
-	if _, exists := r.limits[key]; !exists {
-		r.limits[key] = &ClientLimiter{
-			tries: 0,
-		}
-	}
-	return r.limits[key]
 }
 
 // to allow for testing without needing to wait for long times

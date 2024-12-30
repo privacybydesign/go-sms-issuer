@@ -32,7 +32,7 @@ type ServerState struct {
 	jwtCreator     JwtCreator
 	tokenGenerator TokenGenerator
 	smsTemplates   map[string]string
-	rateLimiter    RateLimiter
+	rateLimiter    *RateLimiter
 }
 
 type Server struct {
