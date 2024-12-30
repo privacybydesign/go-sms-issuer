@@ -5,20 +5,68 @@ import (
 	"time"
 )
 
-type mockClock struct {
-	time time.Time
-}
+func TestRateLimiterForMultipleClients(t *testing.T) {
+	clock := &mockClock{time: time.Now()}
+	rl := NewDefaultRateLimiter(clock)
 
-func (c *mockClock) GetTime() time.Time {
-	return c.time
-}
+	ips := []string{"127.0.0.1", "127.0.0.2", "127.0.0.3"}
+	phones := []string{"+31612345678", "+31612345679", "+31612345677"}
 
-func (c *mockClock) IncTime(time time.Duration) {
-	c.time = c.time.Add(time)
-}
+	// first three attempts should just go by normally
+	for round := 0; round < 3; round++ {
+		for i := 0; i < len(ips); i++ {
+			ip := ips[i]
+			phone := phones[i]
+			allow, remaining := rl.Allow(ip, phone)
+			if !allow {
+				t.Fatalf(
+					"attempt %v for %v and %v was not allowed where it should: %v remaining",
+					round,
+					ip,
+					phone,
+					remaining,
+				)
+			}
+		}
+		clock.IncTime(time.Second)
+	}
 
-func between(min, max, value time.Duration) bool {
-	return value >= min && value <= max
+	// fouth attempt should give the first timeout of one minute
+	for i := 0; i < len(ips); i++ {
+		ip := ips[i]
+		phone := phones[i]
+		allow, remaining := rl.Allow(ip, phone)
+		if allow {
+			t.Fatalf(
+				"attempt for %v and %v was allowed where it should't",
+				ip,
+				phone,
+			)
+		}
+		if remaining.Round(time.Minute) != time.Minute {
+			t.Fatalf(
+				"timeout was expected to be 1 minute but was %v",
+				remaining,
+			)
+		}
+	}
+
+	// after one minute you should be allowed to do another request
+	clock.IncTime(time.Minute)
+
+	for i := 0; i < len(ips); i++ {
+		ip := ips[i]
+		phone := phones[i]
+		allow, remaining := rl.Allow(ip, phone)
+		if !allow {
+			t.Fatalf(
+				"attempt for %v and %v was not allowed where it should, %v remaining",
+				ip,
+				phone,
+				remaining,
+			)
+		}
+	}
 }
 
 func TestRateLimiter(t *testing.T) {
@@ -80,4 +128,20 @@ func TestRateLimiter(t *testing.T) {
 	if timeRemaining.Round(time.Minute) != 5*time.Minute {
 		t.Fatalf("expected 5 minute timeout")
 	}
+}
+
+type mockClock struct {
+	time time.Time
+}
+
+func (c *mockClock) GetTime() time.Time {
+	return c.time
+}
+
+func (c *mockClock) IncTime(time time.Duration) {
+	c.time = c.time.Add(time)
+}
+
+func between(min, max, value time.Duration) bool {
+	return value >= min && value <= max
 }
