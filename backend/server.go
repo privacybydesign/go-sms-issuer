@@ -108,12 +108,13 @@ func handleSendSms(state ServerState, w http.ResponseWriter, r *http.Request) {
 	}
 
 	ip := getIpAddressForRequest(r)
-	timeout := state.rateLimiter.GetTimeoutSecsFor(ip, body.PhoneNumber)
 
-	if timeout > 0.0 {
+    allow, timeout := state.rateLimiter.Allow(ip)
+
+    if !allow {
 		respondWithErr(w, http.StatusTooManyRequests, ErrorRateLimit, "too many requests", err)
-		w.Header().Add("Retry-After", fmt.Sprintf("%f", timeout))
-	}
+		w.Header().Add("Retry-After", fmt.Sprintf("%f", timeout.Seconds()))
+    }
 
 	token := state.tokenGenerator.GenerateToken()
 

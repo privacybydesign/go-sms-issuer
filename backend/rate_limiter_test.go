@@ -5,16 +5,23 @@ import "testing"
 func TestRateLimiter(t *testing.T) {
 	rl := NewDefaultRateLimiter()
 	ip := "127.0.0.1"
-	phone := "+31612345678"
-	timeout := rl.GetTimeoutSecsFor(ip, phone)
+	// phone := "+31612345678"
 
-	if timeout != 0 {
-		t.Fatalf("timeout should be 0 but was %v", timeout)
-	}
+    allow, timeRemaining := rl.Allow(ip)
 
-	timeout = rl.GetTimeoutSecsFor(ip, phone)
+    if !allow {
+        t.Fatalf("first request should not be rate limited: %v", timeRemaining)
+    }
 
-	if timeout != 0 {
-		t.Fatalf("timeout should be 0 but was %v", timeout)
-	}
+    allow, timeRemaining = rl.Allow(ip)
+
+    if !allow {
+        t.Fatalf("second request should not be rate limited: %v", timeRemaining)
+    }
+
+    allow, timeRemaining = rl.Allow(ip)
+
+    if !allow {
+        t.Fatalf("third request should not be rate limited: %v", timeRemaining)
+    }
 }

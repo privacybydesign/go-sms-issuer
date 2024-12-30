@@ -7,72 +7,69 @@ import (
 
 // rate limiting policy
 type RateLimiter interface {
-	GetTimeoutSecsFor(ip, phone string) float64
-}
-
-type Client struct {
-	requests    int
-	timeout     time.Duration
-	lastRequest time.Time
-}
-
-func NewDefaultRateLimiter() *DefaultRateLimiter {
-	return &DefaultRateLimiter{
-		clients: make(map[string]*Client),
-		mutex:   sync.Mutex{},
-		rate:    3,
-		window:  24 * time.Hour,
-	}
+    Allow(ip string) (allow bool, timeout time.Duration)
 }
 
 type DefaultRateLimiter struct {
-	clients map[string]*Client
-	mutex   sync.Mutex
-	rate    int
-	window  time.Duration
+    mu sync.Mutex 
+    limits map[string]*ClientLimiter
 }
 
-func (rl *DefaultRateLimiter) GetTimeoutSecsFor(ip, phone string) float64 {
-	rl.mutex.Lock()
-	defer rl.mutex.Unlock()
-
-	now := time.Now()
-	client, exists := rl.clients[ip]
-
-	if !exists {
-		client = &Client{
-			requests:    0,
-			timeout:     0,
-			lastRequest: now,
-		}
-		rl.clients[ip] = client
-	}
-
-	expiryTime := client.lastRequest.Add(client.timeout)
-	timeRemaining := now.Sub(expiryTime)
-
-	// the clients timeout has not expired yet
-	if timeRemaining > 0 {
-		return timeRemaining.Seconds()
-	}
-
-	// reset the requests if the window has passed
-	if now.Sub(client.lastRequest) > rl.window {
-		client.requests = 0
-	}
-
-	client.requests += 1
-	client.lastRequest = now
-
-	if client.requests >= rl.rate {
-		client.timeout = 100 * time.Second
-	}
-
-	return 0.0
+type ClientLimiter struct {
+    tries int
+    timeoutDuration time.Duration
+    lastRequest time.Time
+    nextTimeoutLevel time.Duration
 }
 
-type NeverRateLimiter struct{}
-
-func (rl *NeverRateLimiter) GetTimeoutSecsFor(ip, phone string) float64 {
-	return 0.0
+func NewDefaultRateLimiter() *DefaultRateLimiter {
+    return &DefaultRateLimiter {
+        limits: make(map[string]*ClientLimiter),
+    }
 }
+
+func (r *DefaultRateLimiter) getClientLimiter(ip string) *ClientLimiter {
+    r.mu.Lock()
+    defer r.mu.Unlock()
+
+    if _, exists := r.limits[ip]; !exists {
+        r.limits[ip] = &ClientLimiter {
+            tries: 3,
+            timeoutDuration: 1 * time.Minute,
+            nextTimeoutLevel: 5 * time.Minute,
+        }
+    }
+    return r.limits[ip]
+}
+
+func (r *DefaultRateLimiter) Allow(ip string) (allow bool, timeout time.Duration) {
+    clientLimiter := r.getClientLimiter(ip)
+    now := time.Now()
+
+    r.mu.Lock()
+    defer r.mu.Unlock()
+
+    if now.After(clientLimiter.lastRequest.Add(clientLimiter.timeoutDuration)) {
+        clientLimiter.tries = 3
+        clientLimiter.timeoutDuration = 1 * time.Minute
+        return true, 0
+    }
+
+    if clientLimiter.tries > 0 {
+        clientLimiter.tries -= 1
+        clientLimiter.lastRequest = now
+        return true, 0
+    }
+
+    remaining := clientLimiter.lastRequest.Add(clientLimiter.timeoutDuration).Sub(now)
+
+    if remaining <= 0 {
+        clientLimiter.tries = 0
+        clientLimiter.lastRequest = now
+        clientLimiter.timeoutDuration = clientLimiter.nextTimeoutLevel
+        return true, 0
+    }
+
+    return false, remaining
+}
+
