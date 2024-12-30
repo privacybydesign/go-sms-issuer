@@ -25,9 +25,6 @@ func NewDefaultRateLimiter() *DefaultRateLimiter {
 	}
 }
 
-// the default rate limiter allows 3 requests and then gives a timeout of 1 minute
-// after this the next request will be allowed to go through 
-// the request after that one (so request 5) will give another timeout of 5 minutes
 type DefaultRateLimiter struct {
 	clients map[string]*Client
 	mutex   sync.Mutex
@@ -43,7 +40,7 @@ func (rl *DefaultRateLimiter) GetTimeoutSecsFor(ip, phone string) float64 {
 	client, exists := rl.clients[ip]
 
 	if !exists {
-        client = &Client{
+		client = &Client{
 			requests:    0,
 			timeout:     0,
 			lastRequest: now,
@@ -59,10 +56,10 @@ func (rl *DefaultRateLimiter) GetTimeoutSecsFor(ip, phone string) float64 {
 		return timeRemaining.Seconds()
 	}
 
-    // reset the requests if the window has passed
-    if now.Sub(client.lastRequest) > rl.window {
-        client.requests = 0
-    }
+	// reset the requests if the window has passed
+	if now.Sub(client.lastRequest) > rl.window {
+		client.requests = 0
+	}
 
 	client.requests += 1
 	client.lastRequest = now
@@ -74,8 +71,8 @@ func (rl *DefaultRateLimiter) GetTimeoutSecsFor(ip, phone string) float64 {
 	return 0.0
 }
 
-type NeverRateLimiter struct {}
+type NeverRateLimiter struct{}
 
 func (rl *NeverRateLimiter) GetTimeoutSecsFor(ip, phone string) float64 {
-    return 0.0
+	return 0.0
 }

@@ -19,7 +19,7 @@ func init() {
 
 	ErrorLogger = log.New(errFile, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
 
-    infoFile, err := os.Create("info.log")
+	infoFile, err := os.Create("info.log")
 
 	if err != nil {
 		log.Fatalf("failed to open error log file: %v", err)

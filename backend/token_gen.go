@@ -10,7 +10,7 @@ type TokenGenerator interface {
 	GenerateToken() string
 }
 
-type RandomTokenGenerator struct {}
+type RandomTokenGenerator struct{}
 
 func (tg *RandomTokenGenerator) GenerateToken() string {
 	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -26,11 +26,10 @@ func (tg *RandomTokenGenerator) GenerateToken() string {
 
 // for testing purposes it's useful to have a static token
 // in production the RandomTokenGenerator should always be used
-type StaticTokenGenerator struct{
-    token string
+type StaticTokenGenerator struct {
+	token string
 }
 
 func (tg *StaticTokenGenerator) GenerateToken() string {
 	return tg.token
 }
-

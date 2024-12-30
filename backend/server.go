@@ -56,7 +56,7 @@ func (s *Server) Stop() error {
 
 func NewServer(state ServerState, config ServerConfig) (*Server, error) {
 	// static file server for the web part on the root
-	fs := http.FileServer(http.Dir("./web/build"))
+	fs := http.FileServer(http.Dir("../frontend/build"))
 
 	mux := http.NewServeMux()
 
