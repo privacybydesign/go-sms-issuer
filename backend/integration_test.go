@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+    rate "go-sms-issuer/rate_limiter"
 )
 
 // for testing purposes it's useful to have a static token
@@ -221,10 +223,10 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
 		smsTemplates: map[string]string{
 			"en": "your token: %v",
 		},
-		rateLimiter: NewRateLimiter(
-			NewInMemoryRateLimiterStorage(),
-			NewSystemClock(),
-			DefaultTimeoutPolicy,
+		rateLimiter: rate.NewRateLimiter(
+			rate.NewInMemoryRateLimiterStorage(),
+			rate.NewSystemClock(),
+			rate.DefaultTimeoutPolicy,
 		),
 	}
 

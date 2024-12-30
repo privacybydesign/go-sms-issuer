@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"time"
+    rate "go-sms-issuer/rate_limiter"
 )
 
 // same error message bodies as the old Java code
@@ -32,7 +33,7 @@ type ServerState struct {
 	jwtCreator     JwtCreator
 	tokenGenerator TokenGenerator
 	smsTemplates   map[string]string
-	rateLimiter    *RateLimiter
+	rateLimiter    *rate.RateLimiter
 }
 
 type Server struct {

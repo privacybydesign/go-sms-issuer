@@ -9,7 +9,7 @@ import (
 )
 
 type JwtCreator interface {
-	CreateJwt(phone string) (string, error)
+	CreateJwt(phone string) (jwt string, err error)
 }
 
 func NewDefaultJwtCreator(privateKeyPath string,

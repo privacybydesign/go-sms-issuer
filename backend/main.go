@@ -5,6 +5,7 @@ import (
 	"flag"
 	"io"
 	"os"
+    rate "go-sms-issuer/rate_limiter"
 )
 
 type Config struct {
@@ -55,10 +56,10 @@ func main() {
 		jwtCreator:     jwtCreator,
 		tokenGenerator: &RandomTokenGenerator{},
 		smsTemplates:   config.SmsTemplates,
-		rateLimiter: NewRateLimiter(
-			NewInMemoryRateLimiterStorage(),
-			NewSystemClock(),
-			DefaultTimeoutPolicy,
+		rateLimiter: rate.NewRateLimiter(
+			rate.NewInMemoryRateLimiterStorage(),
+			rate.NewSystemClock(),
+			rate.DefaultTimeoutPolicy,
 		),
 	}
 
