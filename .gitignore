@@ -2,3 +2,5 @@
 .DS_Store
 web/build
 web/node_modules
+info.log
+error.log
