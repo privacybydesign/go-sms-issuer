@@ -1,27 +1,43 @@
 package main
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
+
+type mockClock struct {
+	time time.Time
+}
+
+func (c *mockClock) GetTime() time.Time {
+	return c.time
+}
+
+func (c *mockClock) IncTime(time.Duration) {
+}
 
 func TestRateLimiter(t *testing.T) {
-	rl := NewDefaultRateLimiter()
+	clock := &mockClock{time: time.Now()}
+
+	rl := NewDefaultRateLimiter(clock)
+
 	ip := "127.0.0.1"
-	// phone := "+31612345678"
+	phone := "+31612345678"
 
-    allow, timeRemaining := rl.Allow(ip)
+	for i := 1; i <= 3; i++ {
+		allow, timeRemaining := rl.Allow(ip, phone)
 
-    if !allow {
-        t.Fatalf("first request should not be rate limited: %v", timeRemaining)
-    }
+		if !allow {
+			t.Fatalf("request %v should not be rate limited: %v", i, timeRemaining)
+		}
 
-    allow, timeRemaining = rl.Allow(ip)
+        clock.IncTime(time.Second)
+	}
 
-    if !allow {
-        t.Fatalf("second request should not be rate limited: %v", timeRemaining)
-    }
+	// fourth request should be rate limited
+	allow, _ := rl.Allow(ip, phone)
 
-    allow, timeRemaining = rl.Allow(ip)
-
-    if !allow {
-        t.Fatalf("third request should not be rate limited: %v", timeRemaining)
-    }
+	if allow {
+		t.Fatalf("expected fourth request to be limited")
+	}
 }

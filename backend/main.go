@@ -55,7 +55,7 @@ func main() {
 		jwtCreator:     jwtCreator,
 		tokenGenerator: &RandomTokenGenerator{},
 		smsTemplates:   config.SmsTemplates,
-		rateLimiter:    NewDefaultRateLimiter(),
+		rateLimiter:    NewDefaultRateLimiter(NewSystemClock()),
 	}
 
 	server, err := NewServer(serverState, config.ServerConfig)

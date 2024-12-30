@@ -230,7 +230,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
 		smsTemplates: map[string]string{
 			"en": "your token: %v",
 		},
-		rateLimiter: NewDefaultRateLimiter(),
+		rateLimiter: NewDefaultRateLimiter(NewSystemClock()),
 	}
 
 	config := ServerConfig{

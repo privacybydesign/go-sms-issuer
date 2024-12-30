@@ -109,7 +109,7 @@ func handleSendSms(state ServerState, w http.ResponseWriter, r *http.Request) {
 
 	ip := getIpAddressForRequest(r)
 
-    allow, timeout := state.rateLimiter.Allow(ip)
+    allow, timeout := state.rateLimiter.Allow(ip, body.PhoneNumber)
 
     if !allow {
 		respondWithErr(w, http.StatusTooManyRequests, ErrorRateLimit, "too many requests", err)
