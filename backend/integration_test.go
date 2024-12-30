@@ -12,41 +12,32 @@ import (
 // for testing purposes it's useful to have a static token
 const testToken = "123456"
 
-/*
 func TestRateLimitingSingleClient(t *testing.T) {
 	server := createAndStartTestServer(t, nil)
 	defer server.Stop()
 
 	phone := "+31612345678"
 
-	// first request should be fine
-	resp, err := makeSendSmsRequest(phone, "en")
-	if err != nil {
-		t.Fatalf("failed to send sms request: %v", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("first request failed, where it should succeed: %v", resp.StatusCode)
-	}
-
-	// second request should be fine
-	resp, err = makeSendSmsRequest(phone, "en")
-	if err != nil {
-		t.Fatalf("failed to send sms request: %v", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("second request failed, where it should succeed: %v", resp.StatusCode)
+	for i := 1; i <= 3; i++ {
+		// first request should be fine
+		resp, err := makeSendSmsRequest(phone, "en")
+		if err != nil {
+			t.Fatalf("failed to send sms request: %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("request %v failed, where it should succeed: %v", i, resp.StatusCode)
+		}
 	}
 
 	// third request should be getting rate limited
-	resp, err = makeSendSmsRequest(phone, "en")
+    resp, err := makeSendSmsRequest(phone, "en")
 	if err != nil {
 		t.Fatalf("failed to send sms request: %v", err)
 	}
 	if resp.StatusCode != http.StatusTooManyRequests {
-		t.Fatalf("third request was expected to be rate limited: %v", resp.StatusCode)
+		t.Fatalf("fourth request was expected to be rate limited: %v", resp.StatusCode)
 	}
 }
-*/
 
 func TestUnsupportedLanguageFails(t *testing.T) {
 	server := createAndStartTestServer(t, nil)
