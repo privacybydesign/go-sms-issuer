@@ -10,19 +10,18 @@ var (
 	ErrorLogger *log.Logger
 )
 
-func init() {
-	errFile, err := os.Create("error.log")
+func InitFileLogger(fileName string) {
+	logFile, err := os.Create(fileName)
 
 	if err != nil {
 		log.Fatalf("failed to open error log file: %v", err)
 	}
 
-	ErrorLogger = log.New(errFile, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
+	ErrorLogger = log.New(logFile, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
+	InfoLogger = log.New(logFile, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
+}
 
-	infoFile, err := os.Create("info.log")
-
-	if err != nil {
-		log.Fatalf("failed to open error log file: %v", err)
-	}
-	InfoLogger = log.New(infoFile, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
+func InitStdErrLogger() {
+	ErrorLogger = log.New(os.Stderr, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
+	InfoLogger = log.New(os.Stderr, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
 }

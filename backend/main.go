@@ -3,9 +3,9 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	rate "go-sms-issuer/rate_limiter"
 	"io"
 	"os"
-    rate "go-sms-issuer/rate_limiter"
 )
 
 type Config struct {
@@ -22,8 +22,15 @@ type Config struct {
 
 func main() {
 	configPath := flag.String("config", "", "Path for the config.json to use")
-
+	loggingType := flag.String("log", "stderr", "Logging type (file or stderr)")
 	flag.Parse()
+
+	switch {
+	case *loggingType == "stderr":
+		InitStdErrLogger()
+	default:
+		InitFileLogger(*loggingType)
+	}
 
 	if *configPath == "" {
 		ErrorLogger.Fatal("please provide a config path using the --config flag")
