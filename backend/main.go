@@ -24,15 +24,7 @@ type Config struct {
 
 func main() {
 	configPath := flag.String("config", "", "Path for the config.json to use")
-	loggingType := flag.String("log", "stderr", "Logging type (file or stderr)")
 	flag.Parse()
-
-	switch {
-	case *loggingType == "stderr":
-		InitStdErrLogger()
-	default:
-		InitFileLogger(*loggingType)
-	}
 
 	if *configPath == "" {
 		ErrorLogger.Fatal("please provide a config path using the --config flag")
@@ -59,11 +51,11 @@ func main() {
 		ErrorLogger.Fatalf("failed to instantiate jwt creator: %v", err)
 	}
 
-    smsSender, err := createSmsBackend(&config)
+	smsSender, err := createSmsBackend(&config)
 
-    if err != nil {
+	if err != nil {
 		ErrorLogger.Fatalf("failed to instantiate sms backend: %v", err)
-    }
+	}
 
 	serverState := ServerState{
 		tokenRepo:      NewInMemoryTokenRepo(),
@@ -91,14 +83,14 @@ func main() {
 	}
 }
 
-func createSmsBackend(config *Config) (SmsSender, error){
-    if config.SmsBackend == "dummy" {
-        return &DummySmsSender{}, nil
-    }
-    if config.SmsBackend == "cm" {
-        return &CmSmsSender {config.CmSmsSenderConfig}, nil
-    }
-    return nil, fmt.Errorf("invalid sms backend: %v", config.SmsBackend)
+func createSmsBackend(config *Config) (SmsSender, error) {
+	if config.SmsBackend == "dummy" {
+		return &DummySmsSender{}, nil
+	}
+	if config.SmsBackend == "cm" {
+		return NewCmSmsSender(config.CmSmsSenderConfig)
+	}
+	return nil, fmt.Errorf("invalid sms backend: %v", config.SmsBackend)
 }
 
 func readConfigFile(path string) (Config, error) {

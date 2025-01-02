@@ -10,6 +10,11 @@ var (
 	ErrorLogger *log.Logger
 )
 
+func init() {
+	ErrorLogger = log.New(os.Stderr, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
+	InfoLogger = log.New(os.Stderr, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
+}
+
 func InitFileLogger(fileName string) {
 	logFile, err := os.Create(fileName)
 
@@ -19,9 +24,4 @@ func InitFileLogger(fileName string) {
 
 	ErrorLogger = log.New(logFile, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
 	InfoLogger = log.New(logFile, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
-}
-
-func InitStdErrLogger() {
-	ErrorLogger = log.New(os.Stderr, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
-	InfoLogger = log.New(os.Stderr, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
 }

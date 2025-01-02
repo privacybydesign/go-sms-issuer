@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-    rate "go-sms-issuer/rate_limiter"
+	rate "go-sms-issuer/rate_limiter"
 )
 
 // for testing purposes it's useful to have a static token
