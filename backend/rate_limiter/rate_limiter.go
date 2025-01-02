@@ -1,6 +1,7 @@
 package rate_limiter
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -25,7 +26,8 @@ func NewRateLimiter(storage RateLimiterStorage, clock Clock, policy TimeoutPolic
 // returns whether the request made by the ip & phone combo is allowed at this moment
 // if it's not allowed it will also return the timeout duration remaining
 func (r *RateLimiter) Allow(ip, phone string) (allow bool, timeoutRemaining time.Duration) {
-	r.storage.PerformTransaction(ip, phone, func(client client) client {
+    clientId := fmt.Sprintf("%v&%v", ip, phone)
+	r.storage.PerformTransaction(clientId, func(client client) client {
 		now := r.clock.GetTime()
 
 		// tries is 3 or higher

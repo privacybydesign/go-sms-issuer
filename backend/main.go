@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	rate "go-sms-issuer/rate_limiter"
-	"io"
 	"os"
 )
 
@@ -94,20 +93,14 @@ func createSmsBackend(config *Config) (SmsSender, error) {
 }
 
 func readConfigFile(path string) (Config, error) {
-	configFile, err := os.Open(path)
-
-	if err != nil {
-		return Config{}, err
-	}
-
-	configContent, err := io.ReadAll(configFile)
+	configBytes, err := os.ReadFile(path)
 
 	if err != nil {
 		return Config{}, err
 	}
 
 	var config Config
-	err = json.Unmarshal([]byte(configContent), &config)
+	err = json.Unmarshal(configBytes, &config)
 
 	if err != nil {
 		return Config{}, err

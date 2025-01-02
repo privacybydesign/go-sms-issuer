@@ -216,7 +216,7 @@ func createSmsMessage(templates map[string]string, phone, token, language string
 }
 
 func respondWithErr(w http.ResponseWriter, code int, responseBody string, log string, e error) {
-	m := fmt.Sprintf(log+":", e)
+    m := fmt.Sprintf("%v: %v", log, e)
 	ErrorLogger.Printf("%s\n -> returning statuscode %d with message %v", m, code, responseBody)
 	w.WriteHeader(code)
 	w.Write([]byte(responseBody))
