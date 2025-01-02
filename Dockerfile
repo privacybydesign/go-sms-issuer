@@ -1,32 +1,26 @@
 FROM node:23 AS frontend-build
-
 WORKDIR /app/frontend
-
 COPY frontend .
-
 RUN yarn install
 RUN ./build.sh en
 
 # -----------------------------------------------------
 
 FROM golang:1.23 AS backend-build
-
 WORKDIR /app/backend
-
 COPY backend .
 RUN go mod download
 
-RUN go build -o server
+# compile with static linking
+RUN CGO_ENABLED=0 go build -o server 
 
 # -----------------------------------------------------
 
 FROM alpine:latest
 
-WORKDIR /app
+COPY --from=backend-build /app/backend/server /app/backend/server
+COPY --from=frontend-build /app/frontend /app/frontend
 
-COPY --from=backend-build /app/backend/server ./backend
-COPY --from=frontend-build /app/frontend ./frontend
-
+WORKDIR /app/backend
 EXPOSE 8080
-
-CMD ["./backend/server"]
+CMD ["./server", "--config", "/secrets/config.json"]
