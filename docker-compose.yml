@@ -22,7 +22,7 @@ services:
       - "8088:8088"
     volumes:
       - ./.secrets/irma-server:/config
-    command: ["server", "--no-tls", "--no-auth=false", "--port=8088", "--config=/config/config.json"]
+    command: server --no-tls --no-auth=false --url=http://localhost:8088 --config=/config/config.json
     restart: unless-stopped
     networks:
       - app_network
