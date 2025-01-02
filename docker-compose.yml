@@ -7,7 +7,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./.secrets/sms-issuer:/secrets
+      - ./local-secrets/sms-issuer:/secrets
     restart: unless-stopped
     networks:
       - app_network
@@ -21,7 +21,7 @@ services:
     ports:
       - "8088:8088"
     volumes:
-      - ./.secrets/irma-server:/config
+      - ./local-secrets/irma-server:/config
     command: server --no-tls --no-auth=false --url=http://localhost:8088 --config=/config/config.json
     restart: unless-stopped
     networks:
