@@ -1,0 +1,11 @@
+{
+    "requestors": {
+        "sms_issuer":  {
+            "auth_method": "publickey",
+            "key_file": "/config/public.pem",
+            "issue_perms": [
+                "irma-demo.sidn-pbdf.mobilenumber"
+            ]
+        }
+    }
+}

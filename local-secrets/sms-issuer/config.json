@@ -1,0 +1,20 @@
+{
+    "server_config": {
+        "host": "0.0.0.0",
+        "port": 8080
+    },
+    "jwt_private_key_path": "/secrets/private.pem",
+    "issuer_id": "sms_issuer",
+    "full_credential": "irma-demo.sidn-pbdf.mobilenumber",
+    "attribute": "mobilenumber",
+    "sms_templates": {
+        "en": "Yivi verification code: %s\nOr directly via a link:\nhttps://sms-issuer.staging.yivi.app/en/#!verify:%s",
+        "nl": "Yivi verificatiecode: %s\nOf direct via een link:\nhttps://sms-issuer.staging.yivi.app/nl/#!verify:%s"
+    },
+    "cm_sms_sender_config": {
+        "from": "",
+        "api_endpoint": "",
+        "product_token": "",
+        "reference": ""
+    }
+}

@@ -1,5 +1,5 @@
 services:
-  myapp:
+  sms-issuer:
     build:
       context: .
       dockerfile: Dockerfile

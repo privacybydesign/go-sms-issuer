@@ -23,4 +23,4 @@ COPY --from=frontend-build /app/frontend /app/frontend
 
 WORKDIR /app/backend
 EXPOSE 8080
-CMD ["./server", "--config", "/secrets/config.json"]
+CMD ["/bin/sh", "-c", "cp /secrets/config.js /app/frontend/build/assets && ./server --config /secrets/config.json"]
