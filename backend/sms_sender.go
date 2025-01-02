@@ -38,12 +38,23 @@ func NewCmSmsSender(config CmSmsSenderConfig) (*CmSmsSender, error) {
 	return &CmSmsSender{config}, nil
 }
 
-func (s *CmSmsSender) SendSms(phone, message string) error {
-	if phone[0] == '+' {
+// CM expects a phone number that starts with 00
+func cmSanitizePhoneNumber(phone string) (string, error){
+	if strings.HasPrefix(phone, "+") {
 		phone = fmt.Sprintf("00%s", phone[1:])
-	} else if phone[:2] != "00" {
-		return errors.New("CM expects internationalized phone numbers")
+	} else if !strings.HasPrefix(phone, "00") {
+		return "", errors.New("CM expects internationalized phone numbers")
 	}
+    return phone, nil
+}
+
+// Implements CM Gateway HTTP GET endpoint
+// https://www.cm.com/en-en/app/docs/api/business-messaging-api/1.0/index#http-get
+func (s *CmSmsSender) SendSms(phone, message string) error {
+    phone, err := cmSanitizePhoneNumber(phone)
+    if err != nil {
+        return err
+    }
 
 	params := url.Values{}
 	params.Add("producttoken", s.ProductToken)

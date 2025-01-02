@@ -1,7 +1,6 @@
 package rate_limiter
 
 import (
-	"fmt"
 	"sync"
 	"time"
 )
@@ -23,18 +22,16 @@ func NewInMemoryRateLimiterStorage() *InMemoryRateLimiterStorage {
 	}
 }
 
-func (s *InMemoryRateLimiterStorage) PerformTransaction(ip, phone string, tx clientTransaction) {
+func (s *InMemoryRateLimiterStorage) PerformTransaction(clientId string, tx clientTransaction) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	key := fmt.Sprintf("%v&%v", ip, phone)
-
-	if _, exists := s.limits[key]; !exists {
-		s.limits[key] = &client{
+	if _, exists := s.limits[clientId]; !exists {
+		s.limits[clientId] = &client{
 			numRequests: 0,
 		}
 	}
-	client := s.limits[key]
+	client := s.limits[clientId]
 	*client = tx(*client)
 }
 
@@ -42,5 +39,5 @@ func (s *InMemoryRateLimiterStorage) PerformTransaction(ip, phone string, tx cli
 type clientTransaction func(client client) client
 
 type RateLimiterStorage interface {
-	PerformTransaction(ip, phone string, tx clientTransaction)
+	PerformTransaction(clientId string, tx clientTransaction)
 }
