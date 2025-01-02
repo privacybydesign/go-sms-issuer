@@ -30,7 +30,6 @@ func (r *RateLimiter) Allow(ip, phone string) (allow bool, timeoutRemaining time
 	r.storage.PerformTransaction(clientId, func(client client) client {
 		now := r.clock.GetTime()
 
-		// tries is 3 or higher
 		timeSinceLastRequest := now.Sub(client.lastRequest)
 		remaining := client.timeoutDuration - timeSinceLastRequest
 
@@ -53,17 +52,17 @@ func (r *RateLimiter) Allow(ip, phone string) (allow bool, timeoutRemaining time
 	return allow, timeoutRemaining
 }
 
-func DefaultTimeoutPolicy(tries int) time.Duration {
-	if tries < 3 {
+func DefaultTimeoutPolicy(numRequests int) time.Duration {
+	if numRequests < 3 {
 		return 0
 	}
-	if tries < 4 {
+	if numRequests < 4 {
 		return time.Minute
 	}
-	if tries < 5 {
+	if numRequests < 5 {
 		return 5 * time.Minute
 	}
-	if tries < 6 {
+	if numRequests < 6 {
 		return time.Hour
 	}
 	return 24 * time.Hour
