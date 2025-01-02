@@ -11,6 +11,7 @@
         "en": "Yivi verification code: %s\nOr directly via a link:\nhttps://sms-issuer.staging.yivi.app/en/#!verify:%s",
         "nl": "Yivi verificatiecode: %s\nOf direct via een link:\nhttps://sms-issuer.staging.yivi.app/nl/#!verify:%s"
     },
+    "sms_backend": "dummy",
     "cm_sms_sender_config": {
         "from": "",
         "api_endpoint": "",

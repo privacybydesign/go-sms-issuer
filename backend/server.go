@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	rate "go-sms-issuer/rate_limiter"
 	"io"
 	"net"
 	"net/http"
 	"time"
-    rate "go-sms-issuer/rate_limiter"
 )
 
 // same error message bodies as the old Java code
@@ -110,12 +110,12 @@ func handleSendSms(state ServerState, w http.ResponseWriter, r *http.Request) {
 
 	ip := getIpAddressForRequest(r)
 
-    allow, timeout := state.rateLimiter.Allow(ip, body.PhoneNumber)
+	allow, timeout := state.rateLimiter.Allow(ip, body.PhoneNumber)
 
-    if !allow {
+	if !allow {
 		respondWithErr(w, http.StatusTooManyRequests, ErrorRateLimit, "too many requests", err)
 		w.Header().Add("Retry-After", fmt.Sprintf("%f", timeout.Seconds()))
-    }
+	}
 
 	token := state.tokenGenerator.GenerateToken()
 
@@ -126,7 +126,7 @@ func handleSendSms(state ServerState, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message, err := createSmsMessage(state.smsTemplates, body.Language, token)
+	message, err := createSmsMessage(state.smsTemplates, body.PhoneNumber, token, body.Language)
 
 	if err != nil {
 		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to create sms", err)
@@ -205,9 +205,10 @@ func getIpAddressForRequest(r *http.Request) string {
 	return ip
 }
 
-func createSmsMessage(templates map[string]string, language string, token string) (string, error) {
+func createSmsMessage(templates map[string]string, phone, token, language string) (string, error) {
 	if fmtString, ok := templates[language]; ok {
-		return fmt.Sprintf(fmtString, token), nil
+		urlSuffix := fmt.Sprintf("%v:%v", phone, token)
+		return fmt.Sprintf(fmtString, token, urlSuffix), nil
 	} else {
 		err := fmt.Errorf("no template for language '%v'", language)
 		return "", err
