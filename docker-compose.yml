@@ -1,0 +1,32 @@
+services:
+  myapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: go-sms-issuer
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./.secrets/sms-issuer:/secrets
+    restart: unless-stopped
+    networks:
+      - app_network
+
+  irma:
+    build:
+      # downloading and building, because the prebuilt one may not match our local arch
+      context: https://github.com/privacybydesign/irmago.git
+      dockerfile: Dockerfile
+    container_name: irma-server
+    ports:
+      - "8088:8088"
+    volumes:
+      - ./.secrets/irma-server:/config
+    command: ["server", "--no-tls", "--no-auth=false", "--port=8088", "--config=/config/config.json"]
+    restart: unless-stopped
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge
