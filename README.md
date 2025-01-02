@@ -26,7 +26,7 @@ popd
 cp local-secrets/sms-issuer/config.js frontend/build/assets/config.js
 
 # setup irma server
-irma server --no-tls --no-auth=false --port=8088 --config=./local-secrets/irma-config.json
+irma server --no-tls --no-auth=false --port=8088 listen-addr=127.0.0.1 --config=./local-secrets/irma-config.json
 
 
 # setup sms issuer
