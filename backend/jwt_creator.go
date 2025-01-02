@@ -30,14 +30,15 @@ func NewDefaultJwtCreator(privateKeyPath string,
 	}
 
 	return &DefaultJwtCreator{
-		privateKey: *privateKey,
+		issuerId:   issuerId,
+		privateKey: privateKey,
 		credential: crediential,
 		attribute:  attribute,
 	}, nil
 }
 
 type DefaultJwtCreator struct {
-	privateKey rsa.PrivateKey
+	privateKey *rsa.PrivateKey
 	issuerId   string
 	credential string
 	attribute  string
