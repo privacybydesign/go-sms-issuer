@@ -37,3 +37,11 @@ func (s *CmSmsSender) SendSms(phone, message string) error {
 
 	return nil
 }
+
+type DummySmsSender struct {}
+
+func (s *DummySmsSender) SendSms(phone, message string) error {
+    InfoLogger.Printf("Sending sms to %v: %v", phone, message)
+    return nil
+}
+

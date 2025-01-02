@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	rate "go-sms-issuer/rate_limiter"
 	"io"
 	"os"
@@ -17,7 +18,8 @@ type Config struct {
 	Attribute         string `json:"attribute"`
 
 	SmsTemplates      map[string]string `json:"sms_templates"`
-	CmSmsSenderConfig CmSmsSenderConfig `json:"cm_sms_sender_config"`
+	SmsBackend        string            `json:"sms_backend"`
+	CmSmsSenderConfig CmSmsSenderConfig `json:"cm_sms_sender_config,omitempty"`
 }
 
 func main() {
@@ -57,9 +59,15 @@ func main() {
 		ErrorLogger.Fatalf("failed to instantiate jwt creator: %v", err)
 	}
 
+    smsSender, err := createSmsBackend(&config)
+
+    if err != nil {
+		ErrorLogger.Fatalf("failed to instantiate sms backend: %v", err)
+    }
+
 	serverState := ServerState{
 		tokenRepo:      NewInMemoryTokenRepo(),
-		smsSender:      &CmSmsSender{config.CmSmsSenderConfig},
+		smsSender:      smsSender,
 		jwtCreator:     jwtCreator,
 		tokenGenerator: &RandomTokenGenerator{},
 		smsTemplates:   config.SmsTemplates,
@@ -81,6 +89,16 @@ func main() {
 	if err != nil {
 		ErrorLogger.Fatalf("failed to listen and serve: %v", err)
 	}
+}
+
+func createSmsBackend(config *Config) (SmsSender, error){
+    if config.SmsBackend == "dummy" {
+        return &DummySmsSender{}, nil
+    }
+    if config.SmsBackend == "cm" {
+        return &CmSmsSender {config.CmSmsSenderConfig}, nil
+    }
+    return nil, fmt.Errorf("invalid sms backend: %v", config.SmsBackend)
 }
 
 func readConfigFile(path string) (Config, error) {
