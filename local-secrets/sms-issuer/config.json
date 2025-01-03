@@ -17,5 +17,13 @@
         "api_endpoint": "",
         "product_token": "",
         "reference": ""
+    },
+    "storage_type": "redis",
+    "redis_config": {
+        "sentinel_host": "redis-sentinel",
+        "sentinel_port": "26379",
+        "sentinel_username": "sentinel_user",
+        "password": "password123",
+        "master_name": "mymaster"
     }
 }

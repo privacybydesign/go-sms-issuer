@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+    log "go-sms-issuer/logging"
 )
 
 type SmsSender interface {
@@ -94,6 +95,6 @@ func (s *CmSmsSender) SendSms(phone, message string) error {
 type DummySmsSender struct{}
 
 func (s *DummySmsSender) SendSms(phone, message string) error {
-	InfoLogger.Printf("Sending sms to %v: %v", phone, message)
+	log.Info.Printf("Sending sms to %v: %v", phone, message)
 	return nil
 }

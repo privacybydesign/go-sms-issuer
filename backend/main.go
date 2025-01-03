@@ -2,10 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	log "go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
 	"os"
+	"strconv"
 )
 
 type Config struct {
@@ -19,6 +22,8 @@ type Config struct {
 	SmsTemplates      map[string]string `json:"sms_templates"`
 	SmsBackend        string            `json:"sms_backend"`
 	CmSmsSenderConfig CmSmsSenderConfig `json:"cm_sms_sender_config,omitempty"`
+	StorageType       string            `json:"storage_type"`
+	RedisConfig       rate.RedisConfig  `json:"redis_config,omitempty"`
 }
 
 func main() {
@@ -26,18 +31,20 @@ func main() {
 	flag.Parse()
 
 	if *configPath == "" {
-		ErrorLogger.Fatal("please provide a config path using the --config flag")
+		log.Error.Fatal("please provide a config path using the --config flag")
 	}
 
-	InfoLogger.Printf("using config: %v", *configPath)
+	log.Info.Printf("using config: %v", *configPath)
 
 	config, err := readConfigFile(*configPath)
 
+    log.Info.Printf("%v\n", config)
+
 	if err != nil {
-		ErrorLogger.Fatalf("failed to read config file: %v", err)
+		log.Error.Fatalf("failed to read config file: %v", err)
 	}
 
-	InfoLogger.Printf("hosting on: %v:%v", config.ServerConfig.Host, config.ServerConfig.Port)
+	log.Info.Printf("hosting on: %v:%v", config.ServerConfig.Host, config.ServerConfig.Port)
 
 	jwtCreator, err := NewDefaultJwtCreator(
 		config.JwtPrivateKeyPath,
@@ -47,13 +54,13 @@ func main() {
 	)
 
 	if err != nil {
-		ErrorLogger.Fatalf("failed to instantiate jwt creator: %v", err)
+		log.Error.Fatalf("failed to instantiate jwt creator: %v", err)
 	}
 
 	smsSender, err := createSmsBackend(&config)
 
 	if err != nil {
-		ErrorLogger.Fatalf("failed to instantiate sms backend: %v", err)
+		log.Error.Fatalf("failed to instantiate sms backend: %v", err)
 	}
 
 	serverState := ServerState{
@@ -72,14 +79,52 @@ func main() {
 	server, err := NewServer(serverState, config.ServerConfig)
 
 	if err != nil {
-		ErrorLogger.Fatalf("failed to create server: %v", err)
+		log.Error.Fatalf("failed to create server: %v", err)
 	}
 
 	err = server.ListenAndServe()
 
 	if err != nil {
-		ErrorLogger.Fatalf("failed to listen and serve: %v", err)
+		log.Error.Fatalf("failed to listen and serve: %v", err)
 	}
+}
+
+func redisConfigFromEnv() (*rate.RedisConfig, error) {
+	port, err := strconv.Atoi(os.Getenv("REDIS_SENTINEL_PORT"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse port for redis sentinel: %v", err)
+	}
+
+	host := os.Getenv("REDIS_SENTINEL_HOST")
+	password := os.Getenv("REDIS_PASSWORD")
+	sentinelUsername := os.Getenv("REDIS_SENTINEL_USERNAME")
+	masterName := os.Getenv("REDIS_MASTER_NAME")
+
+	if password == "" {
+		return nil, errors.New("redis password is empty")
+	}
+
+	if masterName == "" {
+		return nil, errors.New("redis masterName is empty")
+	}
+
+	return &rate.RedisConfig{
+		SentinelHost:     host,
+		SentinelPort:     port,
+		SentinelUsername: sentinelUsername,
+		MasterName:       masterName,
+		Password:         password,
+	}, nil
+}
+
+func createRateLimiterStorage(config *Config) (rate.RateLimiterStorage, error) {
+	if config.StorageType == "redis" {
+		return rate.NewRedisRateLimiterStorage(config.RedisConfig)
+	}
+	if config.StorageType == "memory" {
+		return rate.NewInMemoryRateLimiterStorage(), nil
+	}
+	return nil, errors.New("no valid storage type was set")
 }
 
 func createSmsBackend(config *Config) (SmsSender, error) {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	rate "go-sms-issuer/rate_limiter"
+    log "go-sms-issuer/logging"
 	"io"
 	"net"
 	"net/http"
@@ -191,7 +192,7 @@ func handleVerify(state ServerState, w http.ResponseWriter, r *http.Request) {
 	// can't really do anything about the error if it were to occur...
 	err = state.tokenRepo.RemoveToken(body.PhoneNumber)
 	if err != nil {
-		ErrorLogger.Printf("error while removing token: %v", err)
+		log.Error.Printf("error while removing token: %v", err)
 	}
 }
 
@@ -215,9 +216,9 @@ func createSmsMessage(templates map[string]string, phone, token, language string
 	}
 }
 
-func respondWithErr(w http.ResponseWriter, code int, responseBody string, log string, e error) {
-	m := fmt.Sprintf("%v: %v", log, e)
-	ErrorLogger.Printf("%s\n -> returning statuscode %d with message %v", m, code, responseBody)
+func respondWithErr(w http.ResponseWriter, code int, responseBody string, logMsg string, e error) {
+	m := fmt.Sprintf("%v: %v", logMsg, e)
+	log.Error.Printf("%s\n -> returning statuscode %d with message %v", m, code, responseBody)
 	w.WriteHeader(code)
 	w.Write([]byte(responseBody))
 }
