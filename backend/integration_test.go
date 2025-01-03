@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	log "go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
 )
 
@@ -246,7 +247,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
 		err := server.ListenAndServe()
 		// if server didn't close succesfully
 		if err != http.ErrServerClosed {
-			ErrorLogger.Fatalf("server crashed: %v", err)
+			log.Error.Fatalf("server crashed: %v", err)
 		}
 	}()
 	return server
