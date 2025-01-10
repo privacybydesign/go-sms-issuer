@@ -4,13 +4,6 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: go-sms-issuer
-    environment:
-      - STORAGE_TYPE=redis
-      - REDIS_SENTINEL_HOST=redis-sentinel
-      - REDIS_SENTINEL_PORT=26379
-      - REDIS_SENTINEL_USERNAME=sentinel_user
-      - REDIS_MASTER_NAME=mymaster
-      - REDIS_PASSWORD=password123
     ports:
       - "8080:8080"
     volumes:
@@ -34,22 +27,14 @@ services:
     networks:
       - app_network
 
-  redis-sentinel:
-    image: bitnami/redis-sentinel:latest
-    container_name: redis-sentinel
+  redis:
+    image: 'bitnami/redis:latest'
     environment:
-      - REDIS_MASTER_HOST=redis
-      - REDIS_MASTER_SET=mymaster
-      - REDIS_SENTINEL_QUORUM=2
-      - REDIS_SENTINEL_DOWN_AFTER_MILLISECONDS=5000
-      - REDIS_FAILOVER_TIMEOUT=10000
-      - REDIS_SENTINEL_USER=sentinel_user
-      - REDIS_PASSWORD=password123
-    ports:
-      - "26379:26379"
+      # - ALLOW_EMPTY_PASSWORD=yes
+      - REDIS_PASSWORD=password
+      - REDIS_PORT_NUMBER=6379
     networks:
       - app_network
-    restart: unless-stopped
 
 networks:
   app_network:

@@ -19,11 +19,12 @@ type Config struct {
 	FullCredential    string `json:"full_credential"`
 	Attribute         string `json:"attribute"`
 
-	SmsTemplates      map[string]string `json:"sms_templates"`
-	SmsBackend        string            `json:"sms_backend"`
-	CmSmsSenderConfig CmSmsSenderConfig `json:"cm_sms_sender_config,omitempty"`
-	StorageType       string            `json:"storage_type"`
-	RedisConfig       rate.RedisConfig  `json:"redis_config,omitempty"`
+	SmsTemplates        map[string]string        `json:"sms_templates"`
+	SmsBackend          string                   `json:"sms_backend"`
+	CmSmsSenderConfig   CmSmsSenderConfig        `json:"cm_sms_sender_config,omitempty"`
+	StorageType         string                   `json:"storage_type"`
+	RedisConfig         rate.RedisConfig         `json:"redis_config,omitempty"`
+	RedisSentinelConfig rate.RedisSentinelConfig `json:"redis_sentinel_config,omitempty"`
 }
 
 func main() {
@@ -38,7 +39,7 @@ func main() {
 
 	config, err := readConfigFile(*configPath)
 
-    log.Info.Printf("%v\n", config)
+	log.Info.Printf("%v\n", config)
 
 	if err != nil {
 		log.Error.Fatalf("failed to read config file: %v", err)
@@ -63,6 +64,11 @@ func main() {
 		log.Error.Fatalf("failed to instantiate sms backend: %v", err)
 	}
 
+	storage, err := createRateLimiterStorage(&config)
+	if err != nil {
+		log.Error.Fatalf("failed to create redis storage: %v", err)
+	}
+
 	serverState := ServerState{
 		tokenRepo:      NewInMemoryTokenRepo(),
 		smsSender:      smsSender,
@@ -70,7 +76,7 @@ func main() {
 		tokenGenerator: &RandomTokenGenerator{},
 		smsTemplates:   config.SmsTemplates,
 		rateLimiter: rate.NewRateLimiter(
-			rate.NewInMemoryRateLimiterStorage(),
+			storage,
 			rate.NewSystemClock(),
 			rate.DefaultTimeoutPolicy,
 		),
@@ -89,7 +95,7 @@ func main() {
 	}
 }
 
-func redisConfigFromEnv() (*rate.RedisConfig, error) {
+func redisConfigFromEnv() (*rate.RedisSentinelConfig, error) {
 	port, err := strconv.Atoi(os.Getenv("REDIS_SENTINEL_PORT"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse port for redis sentinel: %v", err)
@@ -108,7 +114,7 @@ func redisConfigFromEnv() (*rate.RedisConfig, error) {
 		return nil, errors.New("redis masterName is empty")
 	}
 
-	return &rate.RedisConfig{
+	return &rate.RedisSentinelConfig{
 		SentinelHost:     host,
 		SentinelPort:     port,
 		SentinelUsername: sentinelUsername,
@@ -119,7 +125,10 @@ func redisConfigFromEnv() (*rate.RedisConfig, error) {
 
 func createRateLimiterStorage(config *Config) (rate.RateLimiterStorage, error) {
 	if config.StorageType == "redis" {
-		return rate.NewRedisRateLimiterStorage(config.RedisConfig)
+		return rate.NewRedisRateLimiterStorage(&config.RedisConfig)
+	}
+	if config.StorageType == "redis_sentinel" {
+		return rate.NewRedisSentinelRateLimiterStorage(&config.RedisSentinelConfig)
 	}
 	if config.StorageType == "memory" {
 		return rate.NewInMemoryRateLimiterStorage(), nil

@@ -3,12 +3,12 @@ package main
 import (
 	"errors"
 	"fmt"
+	log "go-sms-issuer/logging"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
-    log "go-sms-issuer/logging"
 )
 
 type SmsSender interface {
