@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	log "go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
-    log "go-sms-issuer/logging"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"time"
@@ -114,8 +115,11 @@ func handleSendSms(state ServerState, w http.ResponseWriter, r *http.Request) {
 	allow, timeout := state.rateLimiter.Allow(ip, body.PhoneNumber)
 
 	if !allow {
+		// rounding so it doesn't show up weird on the client side
+		roundedSecs := int(math.Round(timeout.Seconds()))
+		w.Header().Set("Retry-After", fmt.Sprintf("%d", roundedSecs))
 		respondWithErr(w, http.StatusTooManyRequests, ErrorRateLimit, "too many requests", err)
-		w.Header().Add("Retry-After", fmt.Sprintf("%f", timeout.Seconds()))
+		return
 	}
 
 	token := state.tokenGenerator.GenerateToken()

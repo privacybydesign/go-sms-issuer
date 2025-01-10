@@ -5,6 +5,20 @@ import (
 	"time"
 )
 
+func TestTimeSerialization(t *testing.T) {
+	now := time.Now().UTC()
+
+	serialized := SerializeTime(now)
+	deserialized, err := DeserializeTime(serialized)
+
+	if err != nil {
+		t.Fatalf("failed to parse time: %v", err)
+	}
+	if deserialized != now {
+		t.Fatalf("time not identical: %v != %v", now, deserialized)
+	}
+}
+
 func TestRateLimiterForMultipleClients(t *testing.T) {
 	clock := &mockClock{time: time.Now()}
 	rl := NewRateLimiter(NewInMemoryRateLimiterStorage(), clock, DefaultTimeoutPolicy)

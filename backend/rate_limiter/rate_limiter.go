@@ -11,7 +11,6 @@ type RateLimiter struct {
 	policy  TimeoutPolicy
 }
 
-
 // timeout policy determines what timeout you get after how many requests
 type TimeoutPolicy func(numRequests int) time.Duration
 
@@ -26,7 +25,7 @@ func NewRateLimiter(storage RateLimiterStorage, clock Clock, policy TimeoutPolic
 // returns whether the request made by the ip & phone combo is allowed at this moment
 // if it's not allowed it will also return the timeout duration remaining
 func (r *RateLimiter) Allow(ip, phone string) (allow bool, timeoutRemaining time.Duration) {
-    clientId := fmt.Sprintf("%v&%v", ip, phone)
+	clientId := fmt.Sprintf("%v&%v", ip, phone)
 	r.storage.PerformTransaction(clientId, func(client client) client {
 		now := r.clock.GetTime()
 
@@ -73,12 +72,12 @@ type Clock interface {
 	GetTime() time.Time
 }
 
-type SystemClock struct{}
+type UtcSystemClock struct{}
 
-func NewSystemClock() *SystemClock {
-	return &SystemClock{}
+func NewSystemClock() *UtcSystemClock {
+	return &UtcSystemClock{}
 }
 
-func (c *SystemClock) GetTime() time.Time {
-	return time.Now()
+func (c *UtcSystemClock) GetTime() time.Time {
+	return time.Now().UTC()
 }

@@ -16,7 +16,7 @@ type client struct {
 	lastRequest     time.Time
 }
 
-type RedisConfig struct {
+type RedisSentinelConfig struct {
 	SentinelHost     string `json:"sentinel_host"`
 	SentinelPort     int    `json:"sentinel_port"`
 	Password         string `json:"password"`
@@ -24,11 +24,33 @@ type RedisConfig struct {
 	SentinelUsername string `json:"sentinel_username"`
 }
 
+type RedisConfig struct {
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	Password string `json:"password"`
+}
+
 type RedisRateLimiterStorage struct {
 	client *redis.Client
 }
 
-func NewRedisRateLimiterStorage(config RedisConfig) (*RedisRateLimiterStorage, error) {
+func NewRedisRateLimiterStorage(config *RedisConfig) (*RedisRateLimiterStorage, error) {
+	ctx := context.Background()
+	addr := fmt.Sprintf("%v:%v", config.Host, config.Port)
+	options := &redis.Options{
+		Addr:     addr,
+		Password: config.Password,
+	}
+	client := redis.NewClient(options)
+	_, err := client.Ping(ctx).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to Redis: %v", err)
+	}
+
+	return &RedisRateLimiterStorage{client: client}, nil
+}
+
+func NewRedisSentinelRateLimiterStorage(config *RedisSentinelConfig) (*RedisRateLimiterStorage, error) {
 	ctx := context.Background()
 
 	addr := fmt.Sprintf("%v:%v", config.SentinelHost, config.SentinelPort)
@@ -37,8 +59,6 @@ func NewRedisRateLimiterStorage(config RedisConfig) (*RedisRateLimiterStorage, e
 		SentinelAddrs:    []string{addr},
 		Password:         config.Password,
 		SentinelUsername: config.SentinelUsername,
-		DB:               0,
-		DialTimeout:      5 * time.Second,
 	}
 
 	client := redis.NewFailoverClient(sentinelOptions)
@@ -56,6 +76,14 @@ const (
 	lastRequestRedisKey = "last-request"
 )
 
+func SerializeTime(t time.Time) string {
+	return t.Format(time.RFC3339Nano)
+}
+
+func DeserializeTime(t string) (time.Time, error) {
+	return time.Parse(time.RFC3339Nano, t)
+}
+
 func clientToRedis(tx *redis.Tx, ctx context.Context, key string, client client) error {
 	err := tx.HSet(ctx, key, numRequestsRedisKey, client.numRequests).Err()
 
@@ -70,7 +98,7 @@ func clientToRedis(tx *redis.Tx, ctx context.Context, key string, client client)
 		return fmt.Errorf("failed to set timeout to redis: %v", err)
 	}
 
-	lastRequest := client.lastRequest.String()
+	lastRequest := SerializeTime(client.lastRequest)
 	err = tx.HSet(ctx, key, lastRequestRedisKey, lastRequest).Err()
 
 	if err != nil {
@@ -111,8 +139,7 @@ func clientFromRedis(tx *redis.Tx, ctx context.Context, key string) (client, err
 		return client{}, fmt.Errorf("failed to get last-request from redis: %v", err)
 	}
 
-	layout := "2006-01-02 15:04:05.999999999 -0700 MST"
-	lastRequest, err := time.Parse(layout, lastRequestStr)
+	lastRequest, err := DeserializeTime(lastRequestStr)
 
 	if err != nil {
 		return client{}, fmt.Errorf("failed to parse last-request as time: %v", err)
@@ -130,15 +157,20 @@ func (s *RedisRateLimiterStorage) PerformTransaction(clientId string, transactio
 	ctx := context.Background()
 	key := fmt.Sprintf("sms-issuer:rate-limiter:%v", clientId)
 	err := s.client.Watch(ctx, func(rtx *redis.Tx) error {
-		client, err := clientFromRedis(rtx, ctx, key)
-
-		if err != nil {
-			return fmt.Errorf("failed to get client from redis: %v", err)
+		keyExists, err := rtx.Exists(ctx, key).Result()
+		var c client
+		if keyExists == 0 {
+			c = client{}
+		} else {
+			c, err = clientFromRedis(rtx, ctx, key)
+			if err != nil {
+				return fmt.Errorf("failed to get client from redis: %v", err)
+			}
 		}
 
-		client = transaction(client)
+		c = transaction(c)
 
-		err = clientToRedis(rtx, ctx, key, client)
+		err = clientToRedis(rtx, ctx, key, c)
 		if err != nil {
 			return fmt.Errorf("failed to store client to redis: %v", err)
 		}
