@@ -8,7 +8,6 @@ import (
 	log "go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
 	"os"
-	"strconv"
 )
 
 type Config struct {
@@ -64,7 +63,7 @@ func main() {
 		log.Error.Fatalf("failed to instantiate sms backend: %v", err)
 	}
 
-	storage, err := createRateLimiterStorage(&config)
+	rateLimiter, err := createRateLimiter(&config)
 	if err != nil {
 		log.Error.Fatalf("failed to create redis storage: %v", err)
 	}
@@ -73,16 +72,12 @@ func main() {
 		tokenRepo:      NewInMemoryTokenRepo(),
 		smsSender:      smsSender,
 		jwtCreator:     jwtCreator,
-		tokenGenerator: &RandomTokenGenerator{},
+		tokenGenerator: NewRandomTokenGenerator(),
 		smsTemplates:   config.SmsTemplates,
-		rateLimiter: rate.NewRateLimiter(
-			storage,
-			rate.NewSystemClock(),
-			rate.DefaultTimeoutPolicy,
-		),
+		rateLimiter:    rateLimiter,
 	}
 
-	server, err := NewServer(serverState, config.ServerConfig)
+	server, err := NewServer(&serverState, config.ServerConfig)
 
 	if err != nil {
 		log.Error.Fatalf("failed to create server: %v", err)
@@ -95,43 +90,29 @@ func main() {
 	}
 }
 
-func redisConfigFromEnv() (*rate.RedisSentinelConfig, error) {
-	port, err := strconv.Atoi(os.Getenv("REDIS_SENTINEL_PORT"))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse port for redis sentinel: %v", err)
-	}
-
-	host := os.Getenv("REDIS_SENTINEL_HOST")
-	password := os.Getenv("REDIS_PASSWORD")
-	sentinelUsername := os.Getenv("REDIS_SENTINEL_USERNAME")
-	masterName := os.Getenv("REDIS_MASTER_NAME")
-
-	if password == "" {
-		return nil, errors.New("redis password is empty")
-	}
-
-	if masterName == "" {
-		return nil, errors.New("redis masterName is empty")
-	}
-
-	return &rate.RedisSentinelConfig{
-		SentinelHost:     host,
-		SentinelPort:     port,
-		SentinelUsername: sentinelUsername,
-		MasterName:       masterName,
-		Password:         password,
-	}, nil
-}
-
-func createRateLimiterStorage(config *Config) (rate.RateLimiterStorage, error) {
+func createRateLimiter(config *Config) (*rate.RateLimiter, error) {
 	if config.StorageType == "redis" {
-		return rate.NewRedisRateLimiterStorage(&config.RedisConfig)
+		client, err := rate.NewRedisClient(&config.RedisConfig)
+		if err != nil {
+			return nil, err
+		}
+		ipStorage := rate.NewRedisRateLimiterStorage(client)
+		phoneStorage := rate.NewRedisRateLimiterStorage(client)
+		return rate.NewRateLimiter(phoneStorage, ipStorage, rate.NewSystemClock(), rate.DefaultTimeoutPolicy), nil
 	}
 	if config.StorageType == "redis_sentinel" {
-		return rate.NewRedisSentinelRateLimiterStorage(&config.RedisSentinelConfig)
+		client, err := rate.NewRedisSentinelClient(&config.RedisSentinelConfig)
+		if err != nil {
+			return nil, err
+		}
+		ipStorage := rate.NewRedisRateLimiterStorage(client)
+		phoneStorage := rate.NewRedisRateLimiterStorage(client)
+		return rate.NewRateLimiter(phoneStorage, ipStorage, rate.NewSystemClock(), rate.DefaultTimeoutPolicy), nil
 	}
 	if config.StorageType == "memory" {
-		return rate.NewInMemoryRateLimiterStorage(), nil
+		ipStorage := rate.NewInMemoryRateLimiterStorage()
+		phoneStorage := rate.NewInMemoryRateLimiterStorage()
+		return rate.NewRateLimiter(phoneStorage, ipStorage, rate.NewSystemClock(), rate.DefaultTimeoutPolicy), nil
 	}
 	return nil, errors.New("no valid storage type was set")
 }
