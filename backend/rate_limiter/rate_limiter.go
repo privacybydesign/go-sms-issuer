@@ -4,34 +4,49 @@ import (
 	"time"
 )
 
+// the total rate limiter exists of one for the ip and one for the phone
+type TotalRateLimiter struct {
+	phone *RateLimiter
+	ip    *RateLimiter
+}
+
+func NewTotalRateLimiter(ip, phone *RateLimiter) *TotalRateLimiter {
+	return &TotalRateLimiter{ip: ip, phone: phone}
+}
+
+func (l *TotalRateLimiter) Allow(ip, phone string) (allow bool, timeoutRemaining time.Duration) {
+	allowIp, remainingIp := l.ip.Allow(ip)
+	allowPhone, remainingPhone := l.phone.Allow(phone)
+
+	if !(allowIp && allowPhone) {
+		return false, max(remainingIp, remainingPhone)
+	}
+	return true, 0
+}
+
 type RateLimiter struct {
-	phoneStorage RateLimiterStorage
-	ipStorage    RateLimiterStorage
-	clock        Clock
-	policy       TimeoutPolicy
+	storage RateLimiterStorage
+	clock   Clock
+	policy  TimeoutPolicy
 }
 
 // timeout policy determines what timeout you get after how many requests
 type TimeoutPolicy func(numRequests int) time.Duration
 
 func NewRateLimiter(
-	phoneStorage RateLimiterStorage,
-	ipStorage RateLimiterStorage,
+	storage RateLimiterStorage,
 	clock Clock,
 	policy TimeoutPolicy,
 ) *RateLimiter {
 	return &RateLimiter{
-		phoneStorage: phoneStorage,
-		ipStorage:    ipStorage,
-		clock:        clock,
-		policy:       policy,
+		storage: storage,
+		clock:   clock,
+		policy:  policy,
 	}
 }
 
-func (r *RateLimiter) Allow(ip, phone string) (allow bool, timeoutRemaining time.Duration) {
-	var allowPhone bool
-	var timeoutRemainingPhone time.Duration
-	r.phoneStorage.PerformTransaction(phone, func(client client) client {
+func (r *RateLimiter) Allow(key string) (allow bool, timeoutRemaining time.Duration) {
+	r.storage.PerformTransaction(key, func(client client) client {
 		now := r.clock.GetTime()
 
 		timeSinceLastRequest := now.Sub(client.lastRequest)
@@ -40,48 +55,20 @@ func (r *RateLimiter) Allow(ip, phone string) (allow bool, timeoutRemaining time
 		if remaining > 0 {
 			// the timeout is not over yet, don't increment the number of attempt,
 			// but also don't allow this one to pass and nofity about the remaining timeout
-			allowPhone = false
-			timeoutRemainingPhone = remaining
+			allow = false
+			timeoutRemaining = remaining
 		} else {
 			// timeout is over, pass the request, but set a new timeout
 			client.numRequests += 1
 			client.lastRequest = now
 			client.timeoutDuration = r.policy(client.numRequests)
-			allowPhone = true
-			timeoutRemainingPhone = 0
+			allow = true
+			timeoutRemaining = 0
 		}
 		return client
 	})
 
-	var allowIp bool
-	var timeoutRemainingIp time.Duration
-	r.ipStorage.PerformTransaction(ip, func(client client) client {
-		now := r.clock.GetTime()
-
-		timeSinceLastRequest := now.Sub(client.lastRequest)
-		remaining := client.timeoutDuration - timeSinceLastRequest
-
-		if remaining > 0 {
-			// the timeout is not over yet, don't increment the number of attempt,
-			// but also don't allow this one to pass and nofity about the remaining timeout
-			allowIp = false
-			timeoutRemainingIp = remaining
-		} else {
-			// timeout is over, pass the request, but set a new timeout
-			client.numRequests += 1
-			client.lastRequest = now
-			client.timeoutDuration = r.policy(client.numRequests)
-			allowIp = true
-			timeoutRemainingIp = 0
-		}
-		return client
-	})
-
-	if !(allowPhone && allowIp) {
-		return false, max(timeoutRemainingPhone, timeoutRemainingIp)
-	}
-
-	return true, 0
+	return allow, timeoutRemaining
 }
 
 func DefaultTimeoutPolicy(numRequests int) time.Duration {

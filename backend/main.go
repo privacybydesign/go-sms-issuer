@@ -7,6 +7,7 @@ import (
 	"fmt"
 	log "go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
+	redis "go-sms-issuer/redis"
 	"os"
 )
 
@@ -18,12 +19,12 @@ type Config struct {
 	FullCredential    string `json:"full_credential"`
 	Attribute         string `json:"attribute"`
 
-	SmsTemplates        map[string]string        `json:"sms_templates"`
-	SmsBackend          string                   `json:"sms_backend"`
-	CmSmsSenderConfig   CmSmsSenderConfig        `json:"cm_sms_sender_config,omitempty"`
-	StorageType         string                   `json:"storage_type"`
-	RedisConfig         rate.RedisConfig         `json:"redis_config,omitempty"`
-	RedisSentinelConfig rate.RedisSentinelConfig `json:"redis_sentinel_config,omitempty"`
+	SmsTemplates        map[string]string         `json:"sms_templates"`
+	SmsBackend          string                    `json:"sms_backend"`
+	CmSmsSenderConfig   CmSmsSenderConfig         `json:"cm_sms_sender_config,omitempty"`
+	StorageType         string                    `json:"storage_type"`
+	RedisConfig         redis.RedisConfig         `json:"redis_config,omitempty"`
+	RedisSentinelConfig redis.RedisSentinelConfig `json:"redis_sentinel_config,omitempty"`
 }
 
 func main() {
@@ -90,29 +91,34 @@ func main() {
 	}
 }
 
-func createRateLimiter(config *Config) (*rate.RateLimiter, error) {
+func createRateLimiter(config *Config) (*rate.TotalRateLimiter, error) {
+	clock := rate.NewSystemClock()
+
 	if config.StorageType == "redis" {
-		client, err := rate.NewRedisClient(&config.RedisConfig)
+		client, err := redis.NewRedisClient(&config.RedisConfig)
 		if err != nil {
 			return nil, err
 		}
-		ipStorage := rate.NewRedisRateLimiterStorage(client)
-		phoneStorage := rate.NewRedisRateLimiterStorage(client)
-		return rate.NewRateLimiter(phoneStorage, ipStorage, rate.NewSystemClock(), rate.DefaultTimeoutPolicy), nil
+		return rate.NewTotalRateLimiter(
+			rate.NewRateLimiter(rate.NewRedisRateLimiterStorage(client), clock, rate.DefaultTimeoutPolicy),
+			rate.NewRateLimiter(rate.NewRedisRateLimiterStorage(client), clock, rate.DefaultTimeoutPolicy),
+		), nil
 	}
 	if config.StorageType == "redis_sentinel" {
-		client, err := rate.NewRedisSentinelClient(&config.RedisSentinelConfig)
+		client, err := redis.NewRedisSentinelClient(&config.RedisSentinelConfig)
 		if err != nil {
 			return nil, err
 		}
-		ipStorage := rate.NewRedisRateLimiterStorage(client)
-		phoneStorage := rate.NewRedisRateLimiterStorage(client)
-		return rate.NewRateLimiter(phoneStorage, ipStorage, rate.NewSystemClock(), rate.DefaultTimeoutPolicy), nil
+		return rate.NewTotalRateLimiter(
+			rate.NewRateLimiter(rate.NewRedisRateLimiterStorage(client), clock, rate.DefaultTimeoutPolicy),
+			rate.NewRateLimiter(rate.NewRedisRateLimiterStorage(client), clock, rate.DefaultTimeoutPolicy),
+		), nil
 	}
 	if config.StorageType == "memory" {
-		ipStorage := rate.NewInMemoryRateLimiterStorage()
-		phoneStorage := rate.NewInMemoryRateLimiterStorage()
-		return rate.NewRateLimiter(phoneStorage, ipStorage, rate.NewSystemClock(), rate.DefaultTimeoutPolicy), nil
+		return rate.NewTotalRateLimiter(
+			rate.NewRateLimiter(rate.NewInMemoryRateLimiterStorage(), clock, rate.DefaultTimeoutPolicy),
+			rate.NewRateLimiter(rate.NewInMemoryRateLimiterStorage(), clock, rate.DefaultTimeoutPolicy),
+		), nil
 	}
 	return nil, errors.New("no valid storage type was set")
 }
