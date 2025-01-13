@@ -7,7 +7,7 @@ func TestCreatingJwt(t *testing.T) {
 	issuerId := "sms_issuer"
 	credential := "irma-demo.sidn-pbdf.mobilenumber"
 	attribute := "mobilenumber"
-	creator, err := NewDefaultJwtCreator(path, issuerId, credential, attribute)
+	creator, err := NewIrmaJwtCreator(path, issuerId, credential, attribute)
 	if err != nil {
 		t.Fatalf("failed to instantiate jwt creator: %v", err)
 	}
