@@ -70,7 +70,7 @@ func main() {
 	}
 
 	serverState := ServerState{
-		tokenRepo:      NewInMemoryTokenRepo(),
+		tokenStorage:   NewInMemoryTokenStorage(),
 		smsSender:      smsSender,
 		jwtCreator:     jwtCreator,
 		tokenGenerator: NewRandomTokenGenerator(),

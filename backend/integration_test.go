@@ -217,7 +217,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
 	smsSender := newMockSmsSender(smsChan)
 
 	state := ServerState{
-		tokenRepo:      NewInMemoryTokenRepo(),
+		tokenStorage:   NewInMemoryTokenStorage(),
 		smsSender:      smsSender,
 		jwtCreator:     &mockJwtCreator{},
 		tokenGenerator: &StaticTokenGenerator{token: testToken},
