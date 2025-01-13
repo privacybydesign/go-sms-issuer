@@ -12,7 +12,7 @@ type JwtCreator interface {
 	CreateJwt(phone string) (jwt string, err error)
 }
 
-func NewDefaultJwtCreator(privateKeyPath string,
+func NewIrmaJwtCreator(privateKeyPath string,
 	issuerId string,
 	crediential string,
 	attribute string,

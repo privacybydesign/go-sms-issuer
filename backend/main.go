@@ -38,39 +38,39 @@ func main() {
 	log.Info.Printf("using config: %v", *configPath)
 
 	config, err := readConfigFile(*configPath)
-
-	log.Info.Printf("%v\n", config)
-
 	if err != nil {
 		log.Error.Fatalf("failed to read config file: %v", err)
 	}
 
 	log.Info.Printf("hosting on: %v:%v", config.ServerConfig.Host, config.ServerConfig.Port)
 
-	jwtCreator, err := NewDefaultJwtCreator(
+	jwtCreator, err := NewIrmaJwtCreator(
 		config.JwtPrivateKeyPath,
 		config.IssuerId,
 		config.FullCredential,
 		config.Attribute,
 	)
-
 	if err != nil {
 		log.Error.Fatalf("failed to instantiate jwt creator: %v", err)
 	}
 
 	smsSender, err := createSmsBackend(&config)
-
 	if err != nil {
 		log.Error.Fatalf("failed to instantiate sms backend: %v", err)
 	}
 
 	rateLimiter, err := createRateLimiter(&config)
 	if err != nil {
-		log.Error.Fatalf("failed to create redis storage: %v", err)
+		log.Error.Fatalf("failed to instantiate rate limiter: %v", err)
+	}
+
+	tokenStorage, err := createTokenStorage(&config)
+	if err != nil {
+		log.Error.Fatalf("failed to instantiate token storage: %v", err)
 	}
 
 	serverState := ServerState{
-		tokenStorage:   NewInMemoryTokenStorage(),
+		tokenStorage:   tokenStorage,
 		smsSender:      smsSender,
 		jwtCreator:     jwtCreator,
 		tokenGenerator: NewRandomTokenGenerator(),
@@ -79,16 +79,35 @@ func main() {
 	}
 
 	server, err := NewServer(&serverState, config.ServerConfig)
-
 	if err != nil {
 		log.Error.Fatalf("failed to create server: %v", err)
 	}
 
 	err = server.ListenAndServe()
-
 	if err != nil {
 		log.Error.Fatalf("failed to listen and serve: %v", err)
 	}
+}
+
+func createTokenStorage(config *Config) (TokenStorage, error) {
+	if config.StorageType == "redis" {
+		client, err := redis.NewRedisClient(&config.RedisConfig)
+		if err != nil {
+			return nil, err
+		}
+		return NewRedisTokenStorage(client), nil
+	}
+	if config.StorageType == "redis_sentinel" {
+		client, err := redis.NewRedisSentinelClient(&config.RedisSentinelConfig)
+		if err != nil {
+			return nil, err
+		}
+		return NewRedisTokenStorage(client), nil
+	}
+	if config.StorageType == "memory" {
+		return NewInMemoryTokenStorage(), nil
+	}
+	return nil, fmt.Errorf("%v is not a valid storage type", config.StorageType)
 }
 
 func createRateLimiter(config *Config) (*rate.TotalRateLimiter, error) {
