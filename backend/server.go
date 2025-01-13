@@ -30,7 +30,7 @@ type ServerConfig struct {
 }
 
 type ServerState struct {
-	tokenRepo      TokenRepository
+	tokenStorage   TokenStorage
 	smsSender      SmsSender
 	jwtCreator     JwtCreator
 	tokenGenerator TokenGenerator
@@ -124,7 +124,7 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 
 	token := state.tokenGenerator.GenerateToken()
 
-	err = state.tokenRepo.StoreToken(body.PhoneNumber, token)
+	err = state.tokenStorage.StoreToken(body.PhoneNumber, token)
 
 	if err != nil {
 		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to store token", err)
@@ -171,7 +171,7 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	expectedToken, err := state.tokenRepo.RetrieveToken(body.PhoneNumber)
+	expectedToken, err := state.tokenStorage.RetrieveToken(body.PhoneNumber)
 
 	if err != nil {
 		respondWithErr(w, http.StatusBadRequest, ErrorCannotValidateToken, "no active token request", err)
@@ -194,7 +194,7 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	// can't really do anything about the error if it were to occur...
-	err = state.tokenRepo.RemoveToken(body.PhoneNumber)
+	err = state.tokenStorage.RemoveToken(body.PhoneNumber)
 	if err != nil {
 		log.Error.Printf("error while removing token: %v", err)
 	}
