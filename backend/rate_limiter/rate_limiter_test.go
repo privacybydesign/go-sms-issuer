@@ -198,13 +198,10 @@ func TestRateLimiter(t *testing.T) {
 	}
 }
 
-func newTestRateLimiter(clock Clock) *RateLimiter {
-	return &RateLimiter{
-		phoneStorage: NewInMemoryRateLimiterStorage(),
-		ipStorage:    NewInMemoryRateLimiterStorage(),
-		clock:        clock,
-		policy:       DefaultTimeoutPolicy,
-	}
+func newTestRateLimiter(clock Clock) *TotalRateLimiter {
+	phone := NewRateLimiter(NewInMemoryRateLimiterStorage(), clock, DefaultTimeoutPolicy)
+	ip := NewRateLimiter(NewInMemoryRateLimiterStorage(), clock, DefaultTimeoutPolicy)
+	return NewTotalRateLimiter(ip, phone)
 }
 
 type mockClock struct {
