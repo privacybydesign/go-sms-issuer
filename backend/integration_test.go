@@ -95,7 +95,7 @@ func TestVerifyWrongPhoneNumberFails(t *testing.T) {
 
 	resp, err := makeVerifyRequest(phone, testToken)
 	if err != nil {
-		t.Fatalf("failed to send verify request")
+		t.Fatalf("failed to send verify request: %v", err)
 	}
 
 	if resp.StatusCode != http.StatusBadRequest {
@@ -226,6 +226,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
 		},
 		rateLimiter: rate.NewRateLimiter(
 			rate.NewInMemoryRateLimiterStorage(),
+			rate.NewInMemoryRateLimiterStorage(),
 			rate.NewSystemClock(),
 			rate.DefaultTimeoutPolicy,
 		),
@@ -237,7 +238,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
 		UseTls: false,
 	}
 
-	server, err := NewServer(state, config)
+	server, err := NewServer(&state, config)
 
 	if err != nil {
 		t.Fatalf("failed to create server: %v", err)

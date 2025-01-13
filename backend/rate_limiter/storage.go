@@ -34,7 +34,7 @@ type RedisRateLimiterStorage struct {
 	client *redis.Client
 }
 
-func NewRedisRateLimiterStorage(config *RedisConfig) (*RedisRateLimiterStorage, error) {
+func NewRedisClient(config *RedisConfig) (*redis.Client, error) {
 	ctx := context.Background()
 	addr := fmt.Sprintf("%v:%v", config.Host, config.Port)
 	options := &redis.Options{
@@ -47,10 +47,10 @@ func NewRedisRateLimiterStorage(config *RedisConfig) (*RedisRateLimiterStorage, 
 		return nil, fmt.Errorf("failed to connect to Redis: %v", err)
 	}
 
-	return &RedisRateLimiterStorage{client: client}, nil
+	return client, err
 }
 
-func NewRedisSentinelRateLimiterStorage(config *RedisSentinelConfig) (*RedisRateLimiterStorage, error) {
+func NewRedisSentinelClient(config *RedisSentinelConfig) (*redis.Client, error) {
 	ctx := context.Background()
 
 	addr := fmt.Sprintf("%v:%v", config.SentinelHost, config.SentinelPort)
@@ -67,7 +67,15 @@ func NewRedisSentinelRateLimiterStorage(config *RedisSentinelConfig) (*RedisRate
 		return nil, fmt.Errorf("failed to connect to Redis through Sentinel: %w", err)
 	}
 
-	return &RedisRateLimiterStorage{client: client}, nil
+	return client, err
+}
+
+func NewRedisRateLimiterStorage(client *redis.Client) *RedisRateLimiterStorage {
+	return &RedisRateLimiterStorage{client: client}
+}
+
+func NewRedisSentinelRateLimiterStorage(client *redis.Client) *RedisRateLimiterStorage {
+	return &RedisRateLimiterStorage{client: client}
 }
 
 const (

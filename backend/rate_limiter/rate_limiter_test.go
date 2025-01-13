@@ -19,9 +19,63 @@ func TestTimeSerialization(t *testing.T) {
 	}
 }
 
+func TestRateLimiterForDifferingPhonesWithSameIp(t *testing.T) {
+	clock := &mockClock{time: time.Now()}
+	rl := newTestRateLimiter(clock)
+
+	ip := "127.0.0.1"
+	phones := []string{"+31611111111", "+31622222222", "+31633333333"}
+
+	// three differing phones should be allowed to make one request each from the same ip
+	for i, phone := range phones {
+		allow, remaining := rl.Allow(ip, phone)
+
+		if !allow {
+			t.Fatalf("failed to allow first 3 attempts, remaining: %v (attempt %v)", remaining, i)
+		}
+		clock.IncTime(time.Second)
+	}
+
+	// fourth request for the same phone should not be allowed anymore
+	allow, remaining := rl.Allow(ip, "+31644444444")
+	if allow {
+		t.Fatalf("fourth attempt for same ip should not be allowed, but is")
+	}
+	if remaining.Round(time.Minute) != time.Minute {
+		t.Fatalf("time remaining was expected to be %v, but is %v", time.Minute, remaining)
+	}
+}
+
+func TestRateLimiterForDifferingIpsWithSamePhone(t *testing.T) {
+	clock := &mockClock{time: time.Now()}
+	rl := newTestRateLimiter(clock)
+
+	ips := []string{"127.0.0.1", "127.0.0.2", "127.0.0.3"}
+	phone := "+31612345678"
+
+	// three differing ips should be allowed to make one request each with the same phone
+	for i, ip := range ips {
+		allow, remaining := rl.Allow(ip, phone)
+
+		if !allow {
+			t.Fatalf("failed to allow first 3 attempts, remaining: %v (attempt %v)", remaining, i)
+		}
+		clock.IncTime(time.Second)
+	}
+
+	// fourth request for the same phone should not be allowed anymore
+	allow, remaining := rl.Allow("127.0.0.4", phone)
+	if allow {
+		t.Fatalf("fourth attempt for same phone number should not be allowed, but is")
+	}
+	if remaining.Round(time.Minute) != time.Minute {
+		t.Fatalf("time remaining was expected to be %v, but is %v", time.Minute, remaining)
+	}
+}
+
 func TestRateLimiterForMultipleClients(t *testing.T) {
 	clock := &mockClock{time: time.Now()}
-	rl := NewRateLimiter(NewInMemoryRateLimiterStorage(), clock, DefaultTimeoutPolicy)
+	rl := newTestRateLimiter(clock)
 
 	ips := []string{"127.0.0.1", "127.0.0.2", "127.0.0.3"}
 	phones := []string{"+31612345678", "+31612345679", "+31612345677"}
@@ -86,7 +140,7 @@ func TestRateLimiterForMultipleClients(t *testing.T) {
 func TestRateLimiter(t *testing.T) {
 	clock := &mockClock{time: time.Now()}
 
-	rl := NewRateLimiter(NewInMemoryRateLimiterStorage(), clock, DefaultTimeoutPolicy)
+	rl := newTestRateLimiter(clock)
 
 	ip := "127.0.0.1"
 	phone := "+31612345678"
@@ -141,6 +195,15 @@ func TestRateLimiter(t *testing.T) {
 	}
 	if timeRemaining.Round(time.Minute) != 5*time.Minute {
 		t.Fatalf("expected 5 minute timeout")
+	}
+}
+
+func newTestRateLimiter(clock Clock) *RateLimiter {
+	return &RateLimiter{
+		phoneStorage: NewInMemoryRateLimiterStorage(),
+		ipStorage:    NewInMemoryRateLimiterStorage(),
+		clock:        clock,
+		policy:       DefaultTimeoutPolicy,
 	}
 }
 

@@ -12,6 +12,10 @@ type TokenGenerator interface {
 
 type RandomTokenGenerator struct{}
 
+func NewRandomTokenGenerator() *RandomTokenGenerator {
+	return &RandomTokenGenerator{}
+}
+
 func (tg *RandomTokenGenerator) GenerateToken() string {
 	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 

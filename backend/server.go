@@ -57,7 +57,7 @@ func (s *Server) Stop() error {
 	return s.server.Shutdown(ctx)
 }
 
-func NewServer(state ServerState, config ServerConfig) (*Server, error) {
+func NewServer(state *ServerState, config ServerConfig) (*Server, error) {
 	// static file server for the web part on the root
 	fs := http.FileServer(http.Dir("../frontend/build"))
 
@@ -92,7 +92,7 @@ type SendSmsPayload struct {
 	Language    string `json:"language"`
 }
 
-func handleSendSms(state ServerState, w http.ResponseWriter, r *http.Request) {
+func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	bodyContent, err := io.ReadAll(r.Body)
@@ -155,7 +155,7 @@ type VerifyPayload struct {
 	Token       string `json:"token"`
 }
 
-func handleVerify(state ServerState, w http.ResponseWriter, r *http.Request) {
+func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	bodyContent, err := io.ReadAll(r.Body)
 
