@@ -34,11 +34,6 @@ jobs:
           working-directory: frontend
           run: ./build.sh ${{ matrix.lang }}
 
-        - uses: actions/upload-artifact@v3
-          with:
-            name: webapp-${{ matrix.lang }}
-            path: webapp/build/
-
     analyze-go:
       runs-on: ubuntu-latest
       steps:
