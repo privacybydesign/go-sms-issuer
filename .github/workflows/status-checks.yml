@@ -78,7 +78,7 @@ jobs:
             password: ${{ secrets.GITHUB_TOKEN }}
 
         - name: Build Docker image for testing
-          run: docker build -t sms-isser-tests --file Dockerfile.test .
+          run: docker build -t sms-issuer-tests --file Dockerfile.test .
 
         - name: Run tests
           run: docker run sms-issuer-tests
