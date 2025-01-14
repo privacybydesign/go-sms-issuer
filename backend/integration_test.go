@@ -231,7 +231,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
 	}
 
 	config := ServerConfig{
-		Host:   "0.0.0.0",
+		Host:   "127.0.0.1",
 		Port:   8081,
 		UseTls: false,
 	}
@@ -261,7 +261,7 @@ func makeSendSmsRequest(phone, language string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return http.Post("http://127.0.0.1:8081/send", "application/json", bytes.NewBuffer(json))
+	return http.Post("http://localhost:8081/send", "application/json", bytes.NewBuffer(json))
 }
 
 func makeVerifyRequest(phone, token string) (*http.Response, error) {
@@ -273,5 +273,5 @@ func makeVerifyRequest(phone, token string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return http.Post("http://127.0.0.1:8081/verify", "application/json", bytes.NewBuffer(json))
+	return http.Post("http://localhost:8081/verify", "application/json", bytes.NewBuffer(json))
 }

@@ -59,21 +59,17 @@ jobs:
       runs-on: ubuntu-latest
       steps:
         - uses: actions/checkout@v4
-        - uses: actions/setup-go@v5
-        - name: Test
-          working-directory: backend
-          # running tests in sequence this way because they will keep the port occupied otherwise
-          run: |
-            tests=$(go test -list . | sed '$d; $d; $d')
-            echo "will run in the following order:\n$tests"
-            for t in $tests; do
-                echo "running test: $t"
-                go test ./... -run $t
-                if [ $? -ne 0 ]; then
-                    echo "Test $t failed. Exiting..."
-                    exit 1
-                fi
-            done
+        - name: Login to GitHub Container Registry
+          uses: docker/login-action@v3
+          with:
+            registry: ghcr.io
+            username: ${{ github.actor }}
+            password: ${{ secrets.GITHUB_TOKEN }}
+        - name: Build Docker image for testing
+          run: docker build -t sms-isser-tests --file Dockerfile.test .
+        - name: Run tests
+          run: docker run sms-issuer-tests
+        
 
     build-docker-image:
       runs-on: ubuntu-latest
