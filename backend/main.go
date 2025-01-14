@@ -11,7 +11,7 @@ import (
 	"os"
 )
 
-    type Config struct {
+type Config struct {
 	ServerConfig ServerConfig `json:"server_config"`
 
 	JwtPrivateKeyPath string `json:"jwt_private_key_path"`
