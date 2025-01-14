@@ -62,7 +62,16 @@ jobs:
         - uses: actions/setup-go@v5
         - name: Test
           working-directory: backend
-          run: go test ./...
+          # running tests in sequence this way because they will keep the port occupied otherwise
+          run: |
+            for t in $(go test -list . | sed '$d; $d; $d'); do
+                echo "running test: $t"
+                go test ./... -run $t
+                if [ $? -ne 0 ]; then
+                    echo "Test $t failed. Exiting..."
+                    exit 1
+                fi
+            done
 
     build-docker-image:
       runs-on: ubuntu-latest
