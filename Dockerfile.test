@@ -6,8 +6,4 @@ COPY . .
 
 RUN cd backend && go mod download
 
-# COPY . .
-
-EXPOSE 8080
-
 CMD cd backend && go test ./... -v
