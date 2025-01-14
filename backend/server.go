@@ -190,7 +190,11 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write([]byte(jwt))
+	if _, err := w.Write([]byte(jwt)); err != nil {
+		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to write jwt to body", err)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 
 	// can't really do anything about the error if it were to occur...
@@ -224,5 +228,7 @@ func respondWithErr(w http.ResponseWriter, code int, responseBody string, logMsg
 	m := fmt.Sprintf("%v: %v", logMsg, e)
 	log.Error.Printf("%s\n -> returning statuscode %d with message %v", m, code, responseBody)
 	w.WriteHeader(code)
-	w.Write([]byte(responseBody))
+	if _, err := w.Write([]byte(responseBody)); err != nil {
+		log.Error.Printf("failed to write body to http response: %v", err)
+	}
 }
