@@ -64,7 +64,9 @@ jobs:
           working-directory: backend
           # running tests in sequence this way because they will keep the port occupied otherwise
           run: |
-            for t in $(go test -list . | sed '$d; $d; $d'); do
+            tests=$(go test -list . | sed '$d; $d; $d')
+            echo "will run in the following order:\n$tests"
+            for t in $tests; do
                 echo "running test: $t"
                 go test ./... -run $t
                 if [ $? -ne 0 ]; then
