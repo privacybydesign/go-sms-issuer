@@ -231,7 +231,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
 	}
 
 	config := ServerConfig{
-		Host:   "127.0.0.1",
+		Host:   "0.0.0.0",
 		Port:   8081,
 		UseTls: false,
 	}
