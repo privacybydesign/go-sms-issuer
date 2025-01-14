@@ -17,7 +17,7 @@ const testToken = "123456"
 
 func TestRateLimitingSingleClient(t *testing.T) {
 	server := createAndStartTestServer(t, nil)
-	defer server.Stop()
+	defer stopServer(server)
 
 	phone := "+31612345678"
 
@@ -44,7 +44,7 @@ func TestRateLimitingSingleClient(t *testing.T) {
 
 func TestUnsupportedLanguageFails(t *testing.T) {
 	server := createAndStartTestServer(t, nil)
-	defer server.Stop()
+	defer stopServer(server)
 
 	phone := "+31687654321"
 
@@ -66,7 +66,7 @@ func TestSmsIsBeingSent(t *testing.T) {
 	// channel must be buffered
 	smsReceiver := make(chan smsMessage, 1)
 	server := createAndStartTestServer(t, &smsReceiver)
-	defer server.Stop()
+	defer stopServer(server)
 
 	phone := "+31687654321"
 
@@ -89,7 +89,7 @@ func TestSmsIsBeingSent(t *testing.T) {
 
 func TestVerifyWrongPhoneNumberFails(t *testing.T) {
 	server := createAndStartTestServer(t, nil)
-	defer server.Stop()
+	defer stopServer(server)
 
 	phone := "+31612345678"
 
@@ -109,7 +109,7 @@ func TestVerifyWrongPhoneNumberFails(t *testing.T) {
 
 func TestWrongTokenFails(t *testing.T) {
 	server := createAndStartTestServer(t, nil)
-	defer server.Stop()
+	defer stopServer(server)
 
 	phone := "+31612345678"
 
@@ -140,7 +140,7 @@ func TestWrongTokenFails(t *testing.T) {
 
 func TestSendingSendRequest(t *testing.T) {
 	server := createAndStartTestServer(t, nil)
-	defer server.Stop()
+	defer stopServer(server)
 
 	phone := "+31612345678"
 
@@ -261,7 +261,7 @@ func makeSendSmsRequest(phone, language string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return http.Post("http://127.0.0.1:8081/send", "application/json", bytes.NewBuffer(json))
+	return http.Post("http://localhost:8081/send", "application/json", bytes.NewBuffer(json))
 }
 
 func makeVerifyRequest(phone, token string) (*http.Response, error) {
@@ -273,5 +273,12 @@ func makeVerifyRequest(phone, token string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return http.Post("http://127.0.0.1:8081/verify", "application/json", bytes.NewBuffer(json))
+	return http.Post("http://localhost:8081/verify", "application/json", bytes.NewBuffer(json))
+}
+
+func stopServer(server *Server) {
+	err := server.Stop()
+	if err != nil {
+		log.Error.Printf("error shutting down server: %v", err)
+	}
 }
