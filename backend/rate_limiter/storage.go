@@ -116,6 +116,10 @@ func (s *RedisRateLimiterStorage) PerformTransaction(clientId string, transactio
 	key := fmt.Sprintf("sms-issuer:rate-limiter:%v", clientId)
 	err := s.client.Watch(ctx, func(rtx *redis.Tx) error {
 		keyExists, err := rtx.Exists(ctx, key).Result()
+		if err != nil {
+			return fmt.Errorf("failed to check if key exists: %v", err)
+		}
+
 		var c client
 		if keyExists == 0 {
 			c = client{}
@@ -157,11 +161,18 @@ func NewInMemoryRateLimiterStorage() *InMemoryRateLimiterStorage {
 
 // this is not part of the RateLimiterStorage api, so it needs to be called from somewhere else
 func (s *InMemoryRateLimiterStorage) RemoveOutdated() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	toRemove := make([]string, 7)
 	for key, value := range s.limits {
-		if time.Now().Sub(value.lastRequest) > 48*time.Hour {
+		if time.Since(value.lastRequest) > 48*time.Hour {
 			toRemove = append(toRemove, key)
 		}
+	}
+
+	for _, toRemove := range toRemove {
+		delete(s.limits, toRemove)
 	}
 }
 
