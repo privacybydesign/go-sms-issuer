@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	log "go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
@@ -249,6 +250,22 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
 			log.Error.Fatalf("server crashed: %v", err)
 		}
 	}()
+
+	// Wait for server to be ready
+	const maxAttempts = 50
+	for i := 0; i < maxAttempts; i++ {
+		resp, err := http.Get("http://localhost:8081/")
+		if err == nil {
+			resp.Body.Close()
+			break
+		}
+		// Wait 50ms before retrying
+		time.Sleep(50 * time.Millisecond)
+		if i == maxAttempts-1 {
+			t.Fatalf("server did not start in time: %v", err)
+		}
+	}
+
 	return server
 }
 
