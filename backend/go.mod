@@ -3,7 +3,7 @@ module go-sms-issuer
 go 1.23.2
 
 require (
-	github.com/golang-jwt/jwt/v4 v4.5.1
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/privacybydesign/irmago v0.16.0
 	github.com/redis/go-redis/v9 v9.7.0
 	golang.org/x/exp v0.0.0-20241217172543-b2144cdd0a67
