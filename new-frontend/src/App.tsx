@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { AppProvider } from "./AppContext";
 
 import IndexPage from './pages/Index';
 import ValidatePage from './pages/Validate';
@@ -23,8 +24,8 @@ function LanguageRouter() {
   return (
     <Routes>
       <Route path="/" element={<IndexPage />} />
-      <Route path="/validate" element={<ValidatePage />} />
       <Route path="/enroll" element={<EnrollPage />} />
+      <Route path="/validate" element={<ValidatePage />} />
       <Route path="/error" element={<ErrorPage />} />
     </Routes>
   );
@@ -32,13 +33,15 @@ function LanguageRouter() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Navigate to="/nl" replace />} />
+    <AppProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Navigate to="/nl" replace />} />
 
-        <Route path=":lang/*" element={<LanguageRouter />} />
-      </Routes>
-    </BrowserRouter>
+          <Route path=":lang/*" element={<LanguageRouter />} />
+        </Routes>
+      </BrowserRouter>
+    </AppProvider>
   );
 }
 

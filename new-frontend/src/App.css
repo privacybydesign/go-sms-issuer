@@ -80,7 +80,7 @@ h1 {
 	font-family: 'Alexandria', Verdana, Arial, sans-serif;
 }
 
-#idin-form {
+.sms-form {
 	display: block;
 	padding: 16px;
 	color: #484747;

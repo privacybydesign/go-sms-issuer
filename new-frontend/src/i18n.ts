@@ -19,7 +19,11 @@ i18n
                     phone_number: "Phone number",
                     index_start: "Start verification",
                     index_phone_placeholder: "06 12345678",
-                    index_phone_not_valid: "Phone number is not valid"
+                    index_phone_not_valid: "Phone number is not valid",
+                    validate_header: "Check your phone number",
+                    validate_explanation: "Please check the phone number again for confirmation. Choose 'Back' to correct your phone number.",
+                    back: "Back",
+                    confirm: "Confirm",
                 }
             },
             nl: {
@@ -31,7 +35,11 @@ i18n
                     phone_number: "Telefoonnummer",
                     index_start: "Start verificatie",
                     index_phone_placeholder: "06 12345678",
-                    index_phone_not_valid: "Telefoonnummer is niet geldig"
+                    index_phone_not_valid: "Telefoonnummer is niet geldig",
+                    validate_header: "Telefoonnummer controleren",
+                    validate_explanation: "Controleer het telefoonnummer nogmaals ter bevestiging. Kies 'Terug' om je telefoonnummer te corrigeren.",
+                    back: "Terug",
+                    confirm: "Bevestigen",
                 }
             }
         },

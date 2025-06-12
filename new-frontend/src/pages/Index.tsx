@@ -8,6 +8,7 @@ import {
 import 'react-international-phone/style.css';
 import { PhoneNumberUtil } from 'google-libphonenumber';
 import { useNavigate } from "react-router-dom";
+import { useAppContext } from '../AppContext';
 
 const phoneUtil = PhoneNumberUtil.getInstance();
 
@@ -21,8 +22,8 @@ const isPhoneValid = (phone: string) => {
 
 export default function IndexPage() {
   const { t, i18n } = useTranslation();
-  const [phone, setPhone] = useState('');
-  const isValid = isPhoneValid(phone);
+  const { phoneNumber, setPhoneNumber} = useAppContext();
+  const isValid = isPhoneValid(phoneNumber || '');
   const navigate = useNavigate();
 
   const countries = defaultCountries.filter((country) => {
@@ -44,16 +45,16 @@ export default function IndexPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          phone: phone,
+          phone: phoneNumber,
           language: i18n.language,
         })
       }
     );
-    // Navigate to the enroll page with react router.
+    // Navigate to the validate page with react router.
     if (response.ok) {
-      navigate("/validate");
+      navigate(`/${i18n.language}/validate`);
     } else {
-
+      navigate(`/${i18n.language}/error`);
     }
   }
 
@@ -64,15 +65,15 @@ export default function IndexPage() {
           <h1>{t('index_header')}</h1>
         </header>
         <main>
-          <div id="idin-form">
+          <div className="sms-form">
             <p>{t('index_explanation')}</p>
             <p>{t('index_multiple_numbers')}</p>
             <label htmlFor="bank-select">{t('phone_number')}</label>
             {/* Phone input */}
             <PhoneInput
               defaultCountry="nl"
-              value={phone}
-              onChange={setPhone}
+              value={phoneNumber}
+              onChange={setPhoneNumber}
               countries={countries}
             />
             <p>
