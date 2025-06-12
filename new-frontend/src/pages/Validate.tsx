@@ -1,9 +1,11 @@
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAppContext } from '../AppContext';
 
 export default function ValidatePage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { phoneNumber } = useAppContext();
 
   const enroll = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -14,21 +16,22 @@ export default function ValidatePage() {
     <>
       <form id="container" onSubmit={enroll}>
         <header>
-          <h1>{t('index_header')}</h1>
+          <h1>{t('validate_header')}</h1>
         </header>
         <main>
-          <div id="idin-form">
+          <div className="sms-form">
 
-            <p>{t('enroll_received_attributes')}</p>
+            <p>{t('validate_explanation')}</p>
 
-            <p>{t('enroll_derived_attributes')}</p>
-            
+            {phoneNumber}
           </div>
         </main>
         <footer>
           <div className="actions">
-            <div></div>
-            <button id="submit-button" >{t('enroll_load_button')}</button>
+            <Link to="/" id="back-button">
+                {t('back')}
+            </Link>
+            <button id="submit-button" >{t('confirm')}</button>
           </div>
         </footer>
       </form>

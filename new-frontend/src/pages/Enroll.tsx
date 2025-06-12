@@ -42,11 +42,24 @@ export default function EnrollPage() {
           <h1>{t('index_header')}</h1>
         </header>
         <main>
-          <div id="idin-form">
+          <div className="sms-form">
 
-            <p>{t('enroll_received_attributes')}</p>
-
-            <p>{t('enroll_derived_attributes')}</p>
+            <div id="block-token">
+              <p>Je ontvangt een SMS van Yivi.</p>
+              <b>Doorloop de volgende stappen:</b>
+              <ol>
+                <li>Open het SMS-bericht afkomstig van Yivi.</li>
+                <li>Kies de link in het SMS-bericht.</li>
+                <li>Je wordt teruggestuurd naar je Yivi-app.</li>
+              </ol>
+              <p>Bekijk je deze pagina niet op je mobiel? Vul hieronder de verificatiecode uit het SMS-bericht in.</p>
+              <form id="token-form">
+                <label htmlFor="submit-token">Verificatiecode</label>
+                <input type="text" required className="form-control" pattern="[0-9A-Za-z]{6}"
+                       />
+                <button className="hidden" id="submit-token" type="submit"></button>
+              </form>
+            </div>
             
           </div>
         </main>
