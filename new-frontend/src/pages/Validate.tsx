@@ -1,15 +1,42 @@
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from "react-router-dom";
 import { useAppContext } from '../AppContext';
+import { PhoneInput } from 'react-international-phone';
+import { useState } from 'react';
 
 export default function ValidatePage() {
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { error, setError } = useState<string | null>(null);
+  const { t, i18n } = useTranslation();
   const { phoneNumber } = useAppContext();
 
-  const enroll = (e: React.FormEvent<HTMLFormElement>) => {
+  const enroll = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-   
+    const response = await fetch(
+      '/send',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: phoneNumber,
+          language: i18n.language,
+        })
+      }
+    );
+    // Navigate to the validate page with react router.
+    if (response.ok) {
+      navigate(`/${i18n.language}/enroll`);
+    } else {
+      switch(await response.text()){ 
+        case "error:ratelimit":
+          setError(t('validate_error_ratelimit'));
+          break;
+        default:
+          navigate(`/${i18n.language}/error`);
+      }
+    }
   };
 
   return (
@@ -23,13 +50,17 @@ export default function ValidatePage() {
 
             <p>{t('validate_explanation')}</p>
 
-            {phoneNumber}
+            <PhoneInput
+              defaultCountry="nl"
+              value={phoneNumber}
+              disabled={true}
+            />
           </div>
         </main>
         <footer>
           <div className="actions">
             <Link to="/" id="back-button">
-                {t('back')}
+              {t('back')}
             </Link>
             <button id="submit-button" >{t('confirm')}</button>
           </div>

@@ -24,6 +24,12 @@ i18n
                     validate_explanation: "Please check the phone number again for confirmation. Choose 'Back' to correct your phone number.",
                     back: "Back",
                     confirm: "Confirm",
+                    error_phone_number_format: 'You did not enter a valid telephone number. Please check whether the telephone number is correct.',
+                    error_internal: 'Internal error. Please contact Yivi if this happens more often.',
+                    error_sending_sms: 'Sending the SMS message fails. Most likely this is problem in the Yivi system. Please contact Yivi if this happens more often.',
+                    error_ratelimit: 'Please try again in %time%.',
+                    error_cannot_validate_token: 'The code cannot be verified. Is there a typo?',
+                    error_address_malformed: 'The telephone number you entered is not supported by us. You can only add (European) mobile telephone numbers.',
                 }
             },
             nl: {
@@ -40,6 +46,12 @@ i18n
                     validate_explanation: "Controleer het telefoonnummer nogmaals ter bevestiging. Kies 'Terug' om je telefoonnummer te corrigeren.",
                     back: "Terug",
                     confirm: "Bevestigen",
+                    error_phone_number_format: 'Je hebt geen geldig telefoonnummer ingevoerd. Controleer of het ingevoerde telefoonnummer klopt.',
+                    error_internal: 'Interne fout. Neem contact op met Yivi als dit vaker voorkomt.',
+                    error_sending_sms: 'De SMS kan niet worden verzonden. Dit is waarschijnlijk een probleem in Yivi. Neem contact op met Yivi als dit vaker voorkomt.',
+                    error_ratelimit: 'Probeer het opnieuw over %time%.',
+                    error_cannot_validate_token: 'De code kon niet worden geverifieerd. Zit er geen typfout in?',
+                    error_address_malformed: 'Het ingevoerde telefoonnummer wordt niet ondersteund. Je kan alleen mobiele telefoonnummers toevoegen.',
                 }
             }
         },

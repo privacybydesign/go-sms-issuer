@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   PhoneInput,
@@ -36,26 +36,7 @@ export default function IndexPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const response = await fetch(
-      '/send',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: phoneNumber,
-          language: i18n.language,
-        })
-      }
-    );
-    // Navigate to the validate page with react router.
-    if (response.ok) {
-      navigate(`/${i18n.language}/validate`);
-    } else {
-      navigate(`/${i18n.language}/error`);
-    }
+    navigate(`/${i18n.language}/validate`);
   }
 
   return (
@@ -69,7 +50,6 @@ export default function IndexPage() {
             <p>{t('index_explanation')}</p>
             <p>{t('index_multiple_numbers')}</p>
             <label htmlFor="bank-select">{t('phone_number')}</label>
-            {/* Phone input */}
             <PhoneInput
               defaultCountry="nl"
               value={phoneNumber}
