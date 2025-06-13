@@ -93,8 +93,6 @@ type SendSmsPayload struct {
 }
 
 func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	bodyContent, err := io.ReadAll(r.Body)
 
 	if err != nil {
@@ -146,6 +144,11 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+
+	err = r.Body.Close()
+	if err != nil {
+		log.Error.Printf("error while closing body: %v", err)
+	}
 }
 
 // -----------------------------------------------------------------------------------
@@ -156,7 +159,6 @@ type VerifyPayload struct {
 }
 
 func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	bodyContent, err := io.ReadAll(r.Body)
 
 	if err != nil {
@@ -201,6 +203,11 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	err = state.tokenStorage.RemoveToken(body.PhoneNumber)
 	if err != nil {
 		log.Error.Printf("error while removing token: %v", err)
+	}
+
+	err = r.Body.Close()
+	if err != nil {
+		log.Error.Printf("error while closing body: %v", err)
 	}
 }
 

@@ -18,7 +18,7 @@ func (l *TotalRateLimiter) Allow(ip, phone string) (allow bool, timeoutRemaining
 	allowIp, remainingIp := l.ip.Allow(ip)
 	allowPhone, remainingPhone := l.phone.Allow(phone)
 
-	if !(allowIp && allowPhone) {
+	if !allowIp || !allowPhone {
 		return false, max(remainingIp, remainingPhone)
 	}
 	return true, 0
