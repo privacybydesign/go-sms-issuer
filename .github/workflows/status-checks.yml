@@ -11,6 +11,9 @@ on:
   # Make it possible to trigger the checks manually.
   workflow_dispatch:
 
+permissions:
+  packages: write
+
 jobs:
     build-frontend:
       strategy:
