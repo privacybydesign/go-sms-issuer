@@ -54,6 +54,8 @@ func (jc *DefaultJwtCreator) CreateJwt(phone string) (string, error) {
 		},
 	})
 
+	issuanceRequest.RequestSdJwts = true
+
 	return irma.SignSessionRequest(
 		issuanceRequest,
 		jwt.GetSigningMethod(jwt.SigningMethodRS256.Alg()),
