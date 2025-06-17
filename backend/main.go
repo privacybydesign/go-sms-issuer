@@ -15,6 +15,7 @@ type Config struct {
 	ServerConfig ServerConfig `json:"server_config"`
 
 	JwtPrivateKeyPath string `json:"jwt_private_key_path"`
+	IrmaServerUrl     string `json:"irma_server_url"`
 	IssuerId          string `json:"issuer_id"`
 	FullCredential    string `json:"full_credential"`
 	Attribute         string `json:"attribute"`
@@ -70,6 +71,7 @@ func main() {
 	}
 
 	serverState := ServerState{
+		irmaServerURL:  config.IrmaServerUrl,
 		tokenStorage:   tokenStorage,
 		smsSender:      smsSender,
 		jwtCreator:     jwtCreator,

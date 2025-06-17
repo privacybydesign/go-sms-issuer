@@ -7,6 +7,7 @@ import IndexPage from './pages/Index';
 import ValidatePage from './pages/Validate';
 import EnrollPage from './pages/Enroll';
 import ErrorPage from './pages/Error';
+import DonePage from './pages/Done';
 
 import './i18n';
 
@@ -27,6 +28,7 @@ function LanguageRouter() {
       <Route path="/enroll" element={<EnrollPage />} />
       <Route path="/validate" element={<ValidatePage />} />
       <Route path="/error" element={<ErrorPage />} />
+      <Route path="/done" element={<DonePage />} />
     </Routes>
   );
 }
