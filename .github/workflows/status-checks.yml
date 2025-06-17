@@ -48,7 +48,7 @@ jobs:
 
         - name: Run linter
           working-directory: backend
-          run: golangci-lint run
+          run: golangci-lint run --timeout 5m
 
     test-go:
       runs-on: ubuntu-latest
