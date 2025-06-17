@@ -30,6 +30,19 @@ i18n
                     error_ratelimit: 'Please try again in %time%.',
                     error_cannot_validate_token: 'The code cannot be verified. Is there a typo?',
                     error_address_malformed: 'The telephone number you entered is not supported by us. You can only add (European) mobile telephone numbers.',
+                    verify: "Verify",
+                    receive_sms: "You will receive a text message from Yivi.",
+                    steps: "Take the following steps:",
+                    step_1: "Open the text message sent by Yivi.",
+                    step_2: "Follow the link in the text message.",
+                    step_3: "You will be redirected back to your Yivi app.",
+                    not_mobile: "Are you not viewing this page on your mobile? Then enter the verification code from the text message below.",
+                    verification_code: "Verification code",
+                    sending_sms: "SMS message is being sent...",
+                    sms_sent: "SMS message has been sent.",
+                    verifying_token: "Code is being verified ...",
+                    error_header: "Error message",
+                    error_default: "An unknown error has occurred. Please try again later."
                 }
             },
             nl: {
@@ -52,6 +65,19 @@ i18n
                     error_ratelimit: 'Probeer het opnieuw over %time%.',
                     error_cannot_validate_token: 'De code kon niet worden geverifieerd. Zit er geen typfout in?',
                     error_address_malformed: 'Het ingevoerde telefoonnummer wordt niet ondersteund. Je kan alleen mobiele telefoonnummers toevoegen.',
+                    verify: "Verifiëren",
+                    receive_sms: "Je ontvangt een SMS van Yivi.",
+                    steps: "Doorloop de volgende stappen:",
+                    step_1: "Open het SMS-bericht afkomstig van Yivi.",
+                    step_2: "Kies de link in het SMS-bericht.",
+                    step_3: "Je wordt teruggestuurd naar je Yivi-app.",
+                    not_mobile: "Bekijk je deze pagina niet op je mobiel? Vul hieronder de verificatiecode uit het SMS-bericht in.",
+                    verification_code: "Verificatiecode",
+                    sending_sms: "SMS-bericht wordt verstuurd...",
+                    sms_sent: "SMS-bericht is verstuurd.",
+                    verifying_token: "Code wordt geverifieerd ...",
+                    error_header: "Foutmelding",
+                    error_default: "Er is een onbekende fout opgetreden. Probeer het later opnieuw."
                 }
             }
         },

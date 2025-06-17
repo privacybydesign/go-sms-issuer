@@ -6,7 +6,7 @@ import { useState } from 'react';
 
 export default function ValidatePage() {
   const navigate = useNavigate();
-  const { error, setError } = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
   const { t, i18n } = useTranslation();
   const { phoneNumber } = useAppContext();
 
@@ -29,15 +29,15 @@ export default function ValidatePage() {
     if (response.ok) {
       navigate(`/${i18n.language}/enroll`);
     } else {
-      switch(await response.text()){ 
-        case "error:ratelimit":
-          setError(t('validate_error_ratelimit'));
-          break;
-        default:
-          navigate(`/${i18n.language}/error`);
+      let errorCode = await response.text()
+      errorCode = errorCode.trim().replaceAll("-", "_").replaceAll(":", "_").toLowerCase();
+      if (errorCode) {
+        setErrorMessage(t(errorCode));
+      } else {
+        navigate(`/${i18n.language}/error`);
       }
     }
-  };
+  }
 
   return (
     <>
@@ -47,7 +47,12 @@ export default function ValidatePage() {
         </header>
         <main>
           <div className="sms-form">
-
+            {errorMessage && <div id="status-bar" className="alert alert-danger" role="alert">
+              <div className="status-container">
+                <div id="status">{errorMessage}</div>
+              </div>
+            </div>
+            }
             <p>{t('validate_explanation')}</p>
 
             <PhoneInput
@@ -59,7 +64,7 @@ export default function ValidatePage() {
         </main>
         <footer>
           <div className="actions">
-            <Link to="/" id="back-button">
+            <Link to={`/${i18n.language}`} id="back-button">
               {t('back')}
             </Link>
             <button id="submit-button" >{t('confirm')}</button>

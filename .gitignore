@@ -10,3 +10,4 @@ vendor
 .vite
 # Node files
 node_modules/
+build/

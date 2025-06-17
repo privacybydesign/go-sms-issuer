@@ -1,38 +1,74 @@
-import { useState, useEffect } from 'react';
-import Cookies from 'js-cookie';
-import jwtDecode from 'jwt-decode';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from "react-router-dom";
-
-interface CredAttr {
-  [key: string]: string;
-}
+import { Link, UNSAFE_ErrorResponseImpl, useNavigate } from "react-router-dom";
+import { useAppContext } from '../AppContext';
+import i18n from '../i18n';
+import { useEffect, useState } from 'react';
 
 export default function EnrollPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const [message, setMessage] = useState<string | undefined>(undefined);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
+  const { phoneNumber } = useAppContext();
 
-  const enroll = (e: React.FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    setMessage(t('sms_sent'));
+  }, [phoneNumber]);
+
+  const enroll = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setErrorMessage(undefined);
 
-    // import("@privacybydesign/yivi-frontend").then((yivi) => {
-    //   yivi.newPopup({
-    //     language: config.language,
-    //     session: {
-    //       url: config.irma_server_url,
-    //       start: {
-    //         method: 'POST',
-    //         headers: { 'Content-Type': 'text/plain' },
-    //         body: Cookies.get('jwt')!,
-    //       },
-    //       result: false,
-    //     },
-    //   })
-    //   .start()
-    //   .then(() => {
-    //     navigate("/");
-    //   });
-    // });
+    // Get the token from the input field
+    const tokenInput = document.querySelector('.verification-code-input') as HTMLInputElement;
+    const token = tokenInput.value.trim();
+    if (!token || token.length !== 6) {
+      alert(t('error_cannot_validate_toke n'));
+      return;
+    }
+
+    const response = await fetch(
+      '/verify',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: phoneNumber,
+          token: token
+        })
+      }
+    );
+
+    if (response.ok) {
+      // Start enrollment process
+      const jwt = response.text()
+      import("@privacybydesign/yivi-frontend").then((yivi) => {
+        yivi.newPopup({
+          language: i18n.language,
+          session: {
+            url: "https://app.yivi.com/session",
+            start: {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'text/plain',
+              },
+              body: jwt,
+            },
+            result: false,
+          },
+        })
+      });
+      return;
+    }
+    let errorCode = await response.text();
+    errorCode = errorCode.trim().replaceAll("-", "_").replaceAll(":", "_").toLowerCase();
+    if (errorCode) {
+      setErrorMessage(t(errorCode));
+    } else {
+      navigate(`/${i18n.language}/error`);
+    }
   };
 
   return (
@@ -43,30 +79,40 @@ export default function EnrollPage() {
         </header>
         <main>
           <div className="sms-form">
-
             <div id="block-token">
-              <p>Je ontvangt een SMS van Yivi.</p>
-              <b>Doorloop de volgende stappen:</b>
+              {(!errorMessage && message) && <div id="status-bar" className="alert alert-success" role="alert">
+                <div className="status-container">
+                  <div id="status">{message}</div>
+                </div>
+              </div>
+              }
+              {errorMessage && <div id="status-bar" className="alert alert-danger" role="alert">
+                <div className="status-container">
+                  <div id="status">{errorMessage}</div>
+                </div>
+              </div>
+              }
+              <p>{t('receive_sms')}</p>
+              <b>{t('steps')}</b>
               <ol>
-                <li>Open het SMS-bericht afkomstig van Yivi.</li>
-                <li>Kies de link in het SMS-bericht.</li>
-                <li>Je wordt teruggestuurd naar je Yivi-app.</li>
+                <li>{t('step_1')}</li>
+                <li>{t('step_2')}</li>
+                <li>{t('step_3')}</li>
               </ol>
-              <p>Bekijk je deze pagina niet op je mobiel? Vul hieronder de verificatiecode uit het SMS-bericht in.</p>
-              <form id="token-form">
-                <label htmlFor="submit-token">Verificatiecode</label>
-                <input type="text" required className="form-control" pattern="[0-9A-Za-z]{6}"
-                       />
-                <button className="hidden" id="submit-token" type="submit"></button>
-              </form>
+              <p>{t('not_mobile')}</p>
+              <label htmlFor="submit-token">{t('verification_code')}</label>
+              <input type="text" required className="form-control verification-code-input" pattern="[0-9A-Za-z]{6}" />
+              <button className="hidden" id="submit-token" type="submit"></button>
             </div>
-            
+
           </div>
         </main>
         <footer>
           <div className="actions">
-            <div></div>
-            <button id="submit-button" >{t('enroll_load_button')}</button>
+            <Link to={`/${i18n.language}/validate`} id="back-button">
+              {t('back')}
+            </Link>
+            <button id="submit-button" >{t('verify')}</button>
           </div>
         </footer>
       </form>
