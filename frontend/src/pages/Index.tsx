@@ -6,15 +6,14 @@ import {
   parseCountry,
 } from 'react-international-phone';
 import 'react-international-phone/style.css';
-import { PhoneNumberUtil } from 'google-libphonenumber';
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { useNavigate } from "react-router-dom";
 import { useAppContext } from '../AppContext';
 
-const phoneUtil = PhoneNumberUtil.getInstance();
-
-const isPhoneValid = (phone: string) => {
+const isPhoneValid = (input: string) => {
   try {
-    return phoneUtil.isValidNumber(phoneUtil.parseAndKeepRawInput(phone));
+    const phone = parsePhoneNumberFromString(input);
+    return phone?.isValid();
   } catch (error) {
     return false;
   }
