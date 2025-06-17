@@ -195,8 +195,6 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-
 	// can't really do anything about the error if it were to occur...
 	err = state.tokenStorage.RemoveToken(body.PhoneNumber)
 	if err != nil {

@@ -33,7 +33,6 @@ export default function IndexPage() {
       'pl', 'pt', 'ro', 'si', 'sk', 'es', 'cz', 'gb', 'se', 'ch'].includes(iso2);
   });
 
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     navigate(`/${i18n.language}/validate`);
