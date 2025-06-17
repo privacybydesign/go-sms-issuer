@@ -28,7 +28,7 @@ type CmSmsSender struct {
 }
 
 func NewCmSmsSender(config CmSmsSenderConfig) (*CmSmsSender, error) {
-	if strings.HasPrefix(config.ApiEndpoint, "https://") {
+	if !strings.HasPrefix(config.ApiEndpoint, "https://") {
 		return nil, errors.New("CM gateway API endpoint should use https")
 	}
 

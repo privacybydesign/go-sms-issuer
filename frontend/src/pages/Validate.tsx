@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAppContext } from '../AppContext';
 import { PhoneInput } from 'react-international-phone';
 import { useState } from 'react';
+import parsePhoneNumberFromString from 'libphonenumber-js';
 
 export default function ValidatePage() {
   const navigate = useNavigate();
@@ -12,6 +13,13 @@ export default function ValidatePage() {
 
   const enroll = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (!phoneNumber) {
+      navigate(`/${i18n.language}/error`);
+      return;
+    }
+    const parsedPhoneNumber = parsePhoneNumberFromString(phoneNumber);
+
     const response = await fetch(
       '/send',
       {
@@ -20,7 +28,7 @@ export default function ValidatePage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          phone: phoneNumber,
+          phone: parsedPhoneNumber?.number,
           language: i18n.language,
         })
       }

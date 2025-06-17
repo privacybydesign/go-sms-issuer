@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAppContext } from '../AppContext';
 import i18n from '../i18n';
 import { useEffect, useState } from 'react';
+import parsePhoneNumberFromString from 'libphonenumber-js';
 
 type VerifyResponse = {
   jwt: string;
@@ -27,10 +28,12 @@ export default function EnrollPage() {
     // Get the token from the input field
     const tokenInput = document.querySelector('.verification-code-input') as HTMLInputElement;
     const token = tokenInput.value.trim();
-    if (!token || token.length !== 6) {
-      alert(t('error_cannot_validate_toke n'));
+    if (!token || token.length !== 6 || !phoneNumber) {
+      navigate(`/${i18n.language}/error`);
       return;
     }
+
+    const parsedPhoneNumber = parsePhoneNumberFromString(phoneNumber);
 
     const response = await fetch(
       '/verify',
@@ -40,7 +43,7 @@ export default function EnrollPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          phone: phoneNumber,
+          phone: parsedPhoneNumber?.number,
           token: token
         })
       }
