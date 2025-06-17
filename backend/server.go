@@ -30,6 +30,7 @@ type ServerConfig struct {
 }
 
 type ServerState struct {
+	irmaServerURL  string
 	tokenStorage   TokenStorage
 	smsSender      SmsSender
 	jwtCreator     JwtCreator
@@ -155,6 +156,11 @@ type VerifyPayload struct {
 	Token       string `json:"token"`
 }
 
+type VerifyResponse struct {
+	Jwt           string `json:"jwt"`
+	IrmaServerURL string `json:"irma_server_url"`
+}
+
 func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	bodyContent, err := io.ReadAll(r.Body)
@@ -190,12 +196,23 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := w.Write([]byte(jwt)); err != nil {
-		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to write jwt to body", err)
+	responseMessage := VerifyResponse{
+		Jwt:           jwt,
+		IrmaServerURL: state.irmaServerURL,
+	}
+
+	payload, err := json.Marshal(responseMessage)
+	if err != nil {
+		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to marshal response message", err)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	_, err = w.Write(payload)
+	if err != nil {
+		log.Error.Fatalf("failed to write body to http response: %v", err)
+	}
 
 	// can't really do anything about the error if it were to occur...
 	err = state.tokenStorage.RemoveToken(body.PhoneNumber)
