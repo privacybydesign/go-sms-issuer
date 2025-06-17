@@ -32,6 +32,18 @@ export default function ValidatePage() {
       let errorCode = await response.text()
       errorCode = errorCode.trim().replaceAll("-", "_").replaceAll(":", "_").toLowerCase();
       if (errorCode) {
+        // If rate limit error, extract the retry time from the response headers
+        if (errorCode === 'error_ratelimit') {
+          const retryAfter = response.headers.get('Retry-After')
+          if (retryAfter) {
+            const retryTime = new Date(Date.now() + parseInt(retryAfter) * 1000);
+            const formattedTime = retryTime.toLocaleTimeString('nl-NL', { timeZone: 'Europe/Amsterdam' });
+            const messageWithTime = t(errorCode, { time: formattedTime })
+            setErrorMessage(messageWithTime);
+            return;
+          }
+        }
+        // For other errors, just set the error message
         setErrorMessage(t(errorCode));
       } else {
         navigate(`/${i18n.language}/error`);

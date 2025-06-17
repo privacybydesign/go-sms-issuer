@@ -27,7 +27,7 @@ i18n
                     error_phone_number_format: 'You did not enter a valid telephone number. Please check whether the telephone number is correct.',
                     error_internal: 'Internal error. Please contact Yivi if this happens more often.',
                     error_sending_sms: 'Sending the SMS message fails. Most likely this is problem in the Yivi system. Please contact Yivi if this happens more often.',
-                    error_ratelimit: 'Please try again in %time%.',
+                    error_ratelimit: 'You have requested to many times. Please try again after {{time}}.',
                     error_cannot_validate_token: 'The code cannot be verified. Is there a typo?',
                     error_address_malformed: 'The telephone number you entered is not supported by us. You can only add (European) mobile telephone numbers.',
                     verify: "Verify",
@@ -42,7 +42,13 @@ i18n
                     sms_sent: "SMS message has been sent.",
                     verifying_token: "Code is being verified ...",
                     error_header: "Error message",
-                    error_default: "An unknown error has occurred. Please try again later."
+                    error_default: "An unknown error has occurred. Please try again later.",
+                    phone_add_success: "Phone number added.",
+                    phone_add_cancel: "Cancelled.",
+                    phone_add_error: "Unfortunately, it was not possible to add this phone number to the Yivi app.",
+                    done_header: "Phone number added",
+                    thank_you: "Thank you for using Yivi, you can close this page now.",
+                    again: "Add another number",
                 }
             },
             nl: {
@@ -62,7 +68,7 @@ i18n
                     error_phone_number_format: 'Je hebt geen geldig telefoonnummer ingevoerd. Controleer of het ingevoerde telefoonnummer klopt.',
                     error_internal: 'Interne fout. Neem contact op met Yivi als dit vaker voorkomt.',
                     error_sending_sms: 'De SMS kan niet worden verzonden. Dit is waarschijnlijk een probleem in Yivi. Neem contact op met Yivi als dit vaker voorkomt.',
-                    error_ratelimit: 'Probeer het opnieuw over %time%.',
+                    error_ratelimit: 'U heeft te vaak een verzoek gedaan. Probeer het opnieuw na {{time}}.',
                     error_cannot_validate_token: 'De code kon niet worden geverifieerd. Zit er geen typfout in?',
                     error_address_malformed: 'Het ingevoerde telefoonnummer wordt niet ondersteund. Je kan alleen mobiele telefoonnummers toevoegen.',
                     verify: "Verifiëren",
@@ -77,7 +83,13 @@ i18n
                     sms_sent: "SMS-bericht is verstuurd.",
                     verifying_token: "Code wordt geverifieerd ...",
                     error_header: "Foutmelding",
-                    error_default: "Er is een onbekende fout opgetreden. Probeer het later opnieuw."
+                    error_default: "Er is een onbekende fout opgetreden. Probeer het later opnieuw.",
+                    phone_add_success: "Telefoonnummer toegevoegd.",
+                    phone_add_cancel: "Geannuleerd.",
+                    phone_add_error: "Het is helaas niet gelukt dit telefoonnummer toe te voegen aan de Yivi-app.",
+                    done_header: "Telefoonnummer toegevoegd",
+                    thank_you: "Bedankt voor het gebruik van Yivi, u kunt deze pagina nu sluiten.",
+                    again: "Nog een telefoonnummer",
                 }
             }
         },

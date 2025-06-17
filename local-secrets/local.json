@@ -4,8 +4,9 @@
         "port": 8080
     },
     "jwt_private_key_path": "../.secrets/priv.pem",
+    "irma_server_url": "https://is.staging.yivi.app",
     "issuer_id": "sms_issuer",
-    "full_credential": "irma-demo.sidn-pbdf.mobilenumber",
+    "full_credential": "pbdf-staging.sidn-pbdf.mobilenumber",
     "attribute": "mobilenumber",
     "sms_templates": {
         "en": "Yivi verification code: %s\nOr directly via a link:\nhttps://sms-issuer.staging.yivi.app/en/#!verify:%s",

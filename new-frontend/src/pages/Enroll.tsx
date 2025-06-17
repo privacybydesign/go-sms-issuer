@@ -1,15 +1,20 @@
 import { useTranslation } from 'react-i18next';
-import { Link, UNSAFE_ErrorResponseImpl, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAppContext } from '../AppContext';
 import i18n from '../i18n';
 import { useEffect, useState } from 'react';
+
+type VerifyResponse = {
+  jwt: string;
+  irma_server_url: string;
+};
 
 export default function EnrollPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [message, setMessage] = useState<string | undefined>(undefined);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
-  const { phoneNumber } = useAppContext();
+  const { phoneNumber, setPhoneNumber } = useAppContext();
 
   useEffect(() => {
     setMessage(t('sms_sent'));
@@ -43,22 +48,35 @@ export default function EnrollPage() {
 
     if (response.ok) {
       // Start enrollment process
-      const jwt = response.text()
+      const res: VerifyResponse = await response.json();
       import("@privacybydesign/yivi-frontend").then((yivi) => {
-        yivi.newPopup({
+        const issuance = yivi.newPopup({
           language: i18n.language,
           session: {
-            url: "https://app.yivi.com/session",
+            url: res.irma_server_url,
             start: {
               method: 'POST',
               headers: {
                 'Content-Type': 'text/plain',
               },
-              body: jwt,
+              body: res.jwt,
             },
             result: false,
           },
-        })
+        });
+        issuance.start()
+            .then(() => {
+                setMessage(t("phone_add_success"));
+                setPhoneNumber('');
+                navigate(`/${i18n.language}/done`);
+            })
+            .catch((e: string) => {
+                if (e === 'Aborted') {
+                    setErrorMessage(t("phone_add_cancel"));
+                } else {
+                  setErrorMessage(t("phone_add_error"));
+                }
+            });
       });
       return;
     }
