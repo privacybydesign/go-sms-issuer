@@ -6,3 +6,8 @@ info.log
 error.log
 
 vendor
+
+.vite
+# Node files
+node_modules/
+build/

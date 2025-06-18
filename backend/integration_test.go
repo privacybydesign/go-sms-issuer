@@ -166,8 +166,31 @@ func TestSendingSendRequest(t *testing.T) {
 	}
 
 	body, err := readCompleteBodyToString(resp)
-	if body != "JWT" {
-		t.Fatalf("body not JWT: %v, %v", err, body)
+	// check if body is json with JWT in it
+	if err != nil {
+		t.Fatalf("failed to read response body: %v", err)
+	}
+	// Deserialize json
+	var data map[string]string
+	err = json.Unmarshal([]byte(body), &data)
+	if err != nil {
+		t.Fatalf("failed to unmarshal response body: %v", err)
+	}
+	// Check if JWT is present
+	jwt, ok := data["jwt"]
+	if !ok {
+		t.Fatalf("response body does not contain JWT: %v", body)
+	}
+	if jwt != "JWT" {
+		t.Fatalf("unexpected JWT in response body: %v", jwt)
+	}
+	// Check if irma_server_url is present
+	irmaServerURL, ok := data["irma_server_url"]
+	if !ok {
+		t.Fatalf("response body does not contain irma_server_url: %v", body)
+	}
+	if irmaServerURL != "http://localhost:8080" {
+		t.Fatalf("unexpected irma_server_url in response body: %v", irmaServerURL)
 	}
 }
 
@@ -223,6 +246,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
 	smsSender := newMockSmsSender(smsChan)
 
 	state := ServerState{
+		irmaServerURL:  "http://localhost:8080",
 		tokenStorage:   NewInMemoryTokenStorage(),
 		smsSender:      smsSender,
 		jwtCreator:     &mockJwtCreator{},
