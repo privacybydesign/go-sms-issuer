@@ -56,7 +56,7 @@ func TestRateLimitingSingleClient(t *testing.T) {
 
 	phone := "+31612345678"
 
-	for i := 1; i <= 3; i++ {
+	for i := 1; i <= 5; i++ {
 		// first request should be fine
 		resp, err := makeSendSmsRequest(phone, "en", testCaptha)
 		if err != nil {
@@ -67,13 +67,12 @@ func TestRateLimitingSingleClient(t *testing.T) {
 		}
 	}
 
-	// third request should be getting rate limited
 	resp, err := makeSendSmsRequest(phone, "en", testCaptha)
 	if err != nil {
 		t.Fatalf("failed to send sms request: %v", err)
 	}
 	if resp.StatusCode != http.StatusTooManyRequests {
-		t.Fatalf("fourth request was expected to be rate limited: %v", resp.StatusCode)
+		t.Fatalf("6th request was expected to be rate limited: %v", resp.StatusCode)
 	}
 }
 
@@ -279,6 +278,15 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileS
 	smsSender := newMockSmsSender(smsChan)
 
 	turnstileVerifier := NewMockTurnStileVerifier(turnstileSuccess)
+	ipRateLimitingPolicy := rate.RateLimitingPolicy{
+		Window: time.Minute * 30,
+		Limit:  10,
+	}
+
+	phoneLimitPolicy := rate.RateLimitingPolicy{
+		Window: time.Minute * 30,
+		Limit:  5,
+	}
 
 	state := ServerState{
 		irmaServerURL:  "http://localhost:8080",
@@ -290,8 +298,8 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileS
 			"en": "your token: %v",
 		},
 		rateLimiter: rate.NewTotalRateLimiter(
-			rate.NewRedisRateLimiter(rate.NewInMemoryRateLimiterStorage(), rate.NewSystemClock(), rate.DefaultTimeoutPolicy),
-			rate.NewRedisRateLimiter(rate.NewInMemoryRateLimiterStorage(), rate.NewSystemClock(), rate.DefaultTimeoutPolicy),
+			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), ipRateLimitingPolicy),
+			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), phoneLimitPolicy),
 		),
 		turnstileVerifier: turnstileVerifier,
 	}
