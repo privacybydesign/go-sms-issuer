@@ -250,8 +250,8 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
 			"en": "your token: %v",
 		},
 		rateLimiter: rate.NewTotalRateLimiter(
-			rate.NewRateLimiter(rate.NewInMemoryRateLimiterStorage(), rate.NewSystemClock(), rate.DefaultTimeoutPolicy),
-			rate.NewRateLimiter(rate.NewInMemoryRateLimiterStorage(), rate.NewSystemClock(), rate.DefaultTimeoutPolicy),
+			rate.NewRedisRateLimiter(rate.NewInMemoryRateLimiterStorage(), rate.NewSystemClock(), rate.DefaultTimeoutPolicy),
+			rate.NewRedisRateLimiter(rate.NewInMemoryRateLimiterStorage(), rate.NewSystemClock(), rate.DefaultTimeoutPolicy),
 		),
 	}
 

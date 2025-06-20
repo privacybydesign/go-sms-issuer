@@ -9,6 +9,7 @@ import (
 	rate "go-sms-issuer/rate_limiter"
 	redis "go-sms-issuer/redis"
 	"os"
+	"time"
 )
 
 type Config struct {
@@ -113,7 +114,14 @@ func createTokenStorage(config *Config) (TokenStorage, error) {
 }
 
 func createRateLimiter(config *Config) (*rate.TotalRateLimiter, error) {
-	clock := rate.NewSystemClock()
+	ipRateLimitingPolicy := rate.RateLimitingPolicy{
+		Limit:  10,
+		Window: 30 * time.Minute,
+	}
+	phoneRateLimitingPolicy := rate.RateLimitingPolicy{
+		Limit:  5,
+		Window: 30 * time.Minute,
+	}
 
 	if config.StorageType == "redis" {
 		client, err := redis.NewRedisClient(&config.RedisConfig)
@@ -121,8 +129,8 @@ func createRateLimiter(config *Config) (*rate.TotalRateLimiter, error) {
 			return nil, err
 		}
 		return rate.NewTotalRateLimiter(
-			rate.NewRateLimiter(rate.NewRedisRateLimiterStorage(client), clock, rate.DefaultTimeoutPolicy),
-			rate.NewRateLimiter(rate.NewRedisRateLimiterStorage(client), clock, rate.DefaultTimeoutPolicy),
+			rate.NewRedisRateLimiter(client, ipRateLimitingPolicy),
+			rate.NewRedisRateLimiter(client, phoneRateLimitingPolicy),
 		), nil
 	}
 	if config.StorageType == "redis_sentinel" {
@@ -131,14 +139,14 @@ func createRateLimiter(config *Config) (*rate.TotalRateLimiter, error) {
 			return nil, err
 		}
 		return rate.NewTotalRateLimiter(
-			rate.NewRateLimiter(rate.NewRedisRateLimiterStorage(client), clock, rate.DefaultTimeoutPolicy),
-			rate.NewRateLimiter(rate.NewRedisRateLimiterStorage(client), clock, rate.DefaultTimeoutPolicy),
+			rate.NewRedisRateLimiter(client, ipRateLimitingPolicy),
+			rate.NewRedisRateLimiter(client, phoneRateLimitingPolicy),
 		), nil
 	}
 	if config.StorageType == "memory" {
 		return rate.NewTotalRateLimiter(
-			rate.NewRateLimiter(rate.NewInMemoryRateLimiterStorage(), clock, rate.DefaultTimeoutPolicy),
-			rate.NewRateLimiter(rate.NewInMemoryRateLimiterStorage(), clock, rate.DefaultTimeoutPolicy),
+			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), ipRateLimitingPolicy),
+			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), phoneRateLimitingPolicy),
 		), nil
 	}
 	return nil, errors.New("no valid storage type was set")
