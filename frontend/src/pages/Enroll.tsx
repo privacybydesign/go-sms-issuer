@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAppContext } from '../AppContext';
 import i18n from '../i18n';
 import { useEffect, useState } from 'react';
+import Turnstile from 'react-turnstile';
 import parsePhoneNumberFromString from 'libphonenumber-js';
 
 type VerifyResponse = {
@@ -15,6 +16,8 @@ export default function EnrollPage() {
   const { t } = useTranslation();
   const [message, setMessage] = useState<string | undefined>(undefined);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
+  const [captcha, setCaptcha] = useState<string>('');
+  const siteKey = (window as any).CONF?.TURNSTILE_SITEKEY || '';
   const { phoneNumber, setPhoneNumber } = useAppContext();
 
   useEffect(() => {
@@ -28,7 +31,7 @@ export default function EnrollPage() {
     // Get the token from the input field
     const tokenInput = document.querySelector('.verification-code-input') as HTMLInputElement;
     const token = tokenInput.value.trim();
-    if (!token || token.length !== 6 || !phoneNumber) {
+    if (!token || token.length !== 6 || !phoneNumber || !captcha) {
       navigate(`/${i18n.language}/error`);
       return;
     }
@@ -44,7 +47,8 @@ export default function EnrollPage() {
         },
         body: JSON.stringify({
           phone: parsedPhoneNumber?.number,
-          token: token
+          token: token,
+          captcha: captcha
         })
       }
     );
@@ -123,6 +127,7 @@ export default function EnrollPage() {
               <p>{t('not_mobile')}</p>
               <label htmlFor="submit-token">{t('verification_code')}</label>
               <input type="text" required className="form-control verification-code-input" pattern="[0-9A-Za-z]{6}" />
+              <Turnstile sitekey={siteKey} onSuccess={(token) => setCaptcha(token || '')} />
               <button className="hidden" id="submit-token" type="submit"></button>
             </div>
 

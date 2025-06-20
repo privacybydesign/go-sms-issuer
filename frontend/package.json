@@ -19,7 +19,8 @@
     "react-dom": "^18.2.0",
     "react-i18next": "^15.5.1",
     "react-international-phone": "^4.5.0",
-    "react-router-dom": "^6.16.0"
+    "react-router-dom": "^6.16.0",
+    "react-turnstile": "^1.0.7"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.0.0",

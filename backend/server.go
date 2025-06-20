@@ -10,6 +10,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -20,6 +21,7 @@ const ErrorCannotValidateToken = "error:cannot-validate-token"
 const ErrorAddressMalformed = "error:address-malformed"
 const ErrorInternal = "error:internal"
 const ErrorSendingSms = "error:sending-sms"
+const ErrorInvalidCaptcha = "error:invalid-captcha"
 
 type ServerConfig struct {
 	Host           string `json:"host"`
@@ -30,13 +32,14 @@ type ServerConfig struct {
 }
 
 type ServerState struct {
-	irmaServerURL  string
-	tokenStorage   TokenStorage
-	smsSender      SmsSender
-	jwtCreator     JwtCreator
-	tokenGenerator TokenGenerator
-	smsTemplates   map[string]string
-	rateLimiter    *rate.TotalRateLimiter
+	irmaServerURL   string
+	tokenStorage    TokenStorage
+	smsSender       SmsSender
+	jwtCreator      JwtCreator
+	tokenGenerator  TokenGenerator
+	smsTemplates    map[string]string
+	rateLimiter     *rate.TotalRateLimiter
+	turnstileSecret string
 }
 
 type Server struct {
@@ -155,6 +158,7 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 type VerifyPayload struct {
 	PhoneNumber string `json:"phone"`
 	Token       string `json:"token"`
+	Captcha     string `json:"captcha"`
 }
 
 type VerifyResponse struct {
@@ -175,6 +179,11 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	err = json.Unmarshal(bodyContent, &body)
 	if err != nil {
 		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to parse body as json", err)
+		return
+	}
+
+	if !verifyTurnstile(state.turnstileSecret, body.Captcha, getIpAddressForRequest(r)) {
+		respondWithErr(w, http.StatusBadRequest, ErrorInvalidCaptcha, "invalid captcha", fmt.Errorf("captcha validation failed"))
 		return
 	}
 
@@ -249,4 +258,32 @@ func respondWithErr(w http.ResponseWriter, code int, responseBody string, logMsg
 	if _, err := w.Write([]byte(responseBody)); err != nil {
 		log.Error.Printf("failed to write body to http response: %v", err)
 	}
+}
+
+func verifyTurnstile(secret, token, ip string) bool {
+	values := url.Values{}
+	values.Set("secret", secret)
+	values.Set("response", token)
+	if ip != "" {
+		values.Set("remoteip", ip)
+	}
+	resp, err := http.PostForm("https://challenges.cloudflare.com/turnstile/v0/siteverify", values)
+	if err != nil {
+		log.Error.Printf("turnstile request failed: %v", err)
+		return false
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Error.Printf("failed reading turnstile response: %v", err)
+		return false
+	}
+	var data struct {
+		Success bool `json:"success"`
+	}
+	if err := json.Unmarshal(body, &data); err != nil {
+		log.Error.Printf("failed parsing turnstile response: %v", err)
+		return false
+	}
+	return data.Success
 }

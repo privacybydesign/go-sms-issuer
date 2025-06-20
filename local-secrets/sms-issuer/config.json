@@ -30,5 +30,7 @@
         "sentinel_username": "sentinel_user",
         "password": "password123",
         "master_name": "mymaster"
-    }
+    },
+    "turnstile_secret": "test-secret",
+    "turnstile_sitekey": "test-site-key"
 }

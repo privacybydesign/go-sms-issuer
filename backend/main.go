@@ -26,6 +26,8 @@ type Config struct {
 	StorageType         string                    `json:"storage_type"`
 	RedisConfig         redis.RedisConfig         `json:"redis_config,omitempty"`
 	RedisSentinelConfig redis.RedisSentinelConfig `json:"redis_sentinel_config,omitempty"`
+	TurnstileSecret     string                    `json:"turnstile_secret"`
+	TurnstileSitekey    string                    `json:"turnstile_sitekey"`
 }
 
 func main() {
@@ -71,13 +73,14 @@ func main() {
 	}
 
 	serverState := ServerState{
-		irmaServerURL:  config.IrmaServerUrl,
-		tokenStorage:   tokenStorage,
-		smsSender:      smsSender,
-		jwtCreator:     jwtCreator,
-		tokenGenerator: NewRandomTokenGenerator(),
-		smsTemplates:   config.SmsTemplates,
-		rateLimiter:    rateLimiter,
+		irmaServerURL:   config.IrmaServerUrl,
+		tokenStorage:    tokenStorage,
+		smsSender:       smsSender,
+		jwtCreator:      jwtCreator,
+		tokenGenerator:  NewRandomTokenGenerator(),
+		smsTemplates:    config.SmsTemplates,
+		rateLimiter:     rateLimiter,
+		turnstileSecret: config.TurnstileSecret,
 	}
 
 	server, err := NewServer(&serverState, config.ServerConfig)
