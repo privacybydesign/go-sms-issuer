@@ -11,3 +11,6 @@ vendor
 # Node files
 node_modules/
 build/
+
+local-secrets/
+.env
