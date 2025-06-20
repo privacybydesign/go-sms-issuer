@@ -94,6 +94,7 @@ func NewServer(state *ServerState, config ServerConfig) (*Server, error) {
 type SendSmsPayload struct {
 	PhoneNumber string `json:"phone"`
 	Language    string `json:"language"`
+	Captcha     string `json:"captcha"`
 }
 
 func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
@@ -111,6 +112,11 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to parse json for body of send-sms request", err)
+		return
+	}
+
+	if !verifyTurnstile(state.turnstileSecret, body.Captcha, getIpAddressForRequest(r)) {
+		respondWithErr(w, http.StatusBadRequest, ErrorInvalidCaptcha, "invalid captcha", fmt.Errorf("captcha validation failed"))
 		return
 	}
 
@@ -158,7 +164,6 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 type VerifyPayload struct {
 	PhoneNumber string `json:"phone"`
 	Token       string `json:"token"`
-	Captcha     string `json:"captcha"`
 }
 
 type VerifyResponse struct {
@@ -179,11 +184,6 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	err = json.Unmarshal(bodyContent, &body)
 	if err != nil {
 		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to parse body as json", err)
-		return
-	}
-
-	if !verifyTurnstile(state.turnstileSecret, body.Captcha, getIpAddressForRequest(r)) {
-		respondWithErr(w, http.StatusBadRequest, ErrorInvalidCaptcha, "invalid captcha", fmt.Errorf("captcha validation failed"))
 		return
 	}
 
