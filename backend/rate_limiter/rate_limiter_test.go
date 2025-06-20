@@ -208,7 +208,3 @@ func (c *mockClock) GetTime() time.Time {
 func (c *mockClock) IncTime(time time.Duration) {
 	c.time = c.time.Add(time)
 }
-
-func between(min, max, value time.Duration) bool {
-	return value >= min && value <= max
-}
