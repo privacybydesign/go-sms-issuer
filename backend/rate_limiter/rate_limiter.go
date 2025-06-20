@@ -90,15 +90,15 @@ func (r *InMemoryRateLimiter) Allow(key string) (allow bool, timeout time.Durati
 
 	entry.count += 1
 
-	if entry.count >= r.policy.Limit {
-		timeRemaining := entry.expiry.Sub(r.clock.GetTime())
+	if entry.count > r.policy.Limit {
+		timeUntilExpiry := entry.expiry.Sub(r.clock.GetTime())
 
-		if timeRemaining < 0 {
+		if timeUntilExpiry < 0 {
 			entry.expiry = r.clock.GetTime().Add(r.policy.Window)
 			entry.count = 0
 			return true, 0, nil
 		}
-		return false, timeRemaining, nil
+		return false, timeUntilExpiry, nil
 	}
 	return true, 0, nil
 
@@ -116,7 +116,7 @@ func NewTotalRateLimiter(ip, phone RateLimiter) *TotalRateLimiter {
 
 func (l *TotalRateLimiter) Allow(ip, phone string) (allow bool, timeoutRemaining time.Duration) {
 	ipKey := fmt.Sprintf("sms-issuer:ip:%s", ip)
-	phoneKey := fmt.Sprintf("sms-issuer:phone:phone")
+	phoneKey := fmt.Sprintf("sms-issuer:phone:%s", phone)
 
 	allowPhone, timeRemainingPhone, err := l.phone.Allow(phoneKey)
 	if err != nil {

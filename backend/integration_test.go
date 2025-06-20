@@ -67,7 +67,6 @@ func TestRateLimitingSingleClient(t *testing.T) {
 		}
 	}
 
-	// third request should be getting rate limited
 	resp, err := makeSendSmsRequest(phone, "en", testCaptha)
 	if err != nil {
 		t.Fatalf("failed to send sms request: %v", err)
@@ -279,6 +278,15 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileS
 	smsSender := newMockSmsSender(smsChan)
 
 	turnstileVerifier := NewMockTurnStileVerifier(turnstileSuccess)
+	ipRateLimitingPolicy := rate.RateLimitingPolicy{
+		Window: time.Minute * 30,
+		Limit:  10,
+	}
+
+	phoneLimitPolicy := rate.RateLimitingPolicy{
+		Window: time.Minute * 30,
+		Limit:  5,
+	}
 
 	ipRateLimitingPolicy := rate.RateLimitingPolicy{
 		Window: time.Minute * 30,
@@ -300,8 +308,8 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileS
 			"en": "your token: %v",
 		},
 		rateLimiter: rate.NewTotalRateLimiter(
-			rate.NewRedisRateLimiter(rate.NewInMemoryRateLimiterStorage(), rate.NewSystemClock(), rate.DefaultTimeoutPolicy),
-			rate.NewRedisRateLimiter(rate.NewInMemoryRateLimiterStorage(), rate.NewSystemClock(), rate.DefaultTimeoutPolicy),
+			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), ipRateLimitingPolicy),
+			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), phoneLimitPolicy),
 		),
 		turnstileVerifier: turnstileVerifier,
 	}
