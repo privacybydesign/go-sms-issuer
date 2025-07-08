@@ -6,6 +6,7 @@ import (
 	"fmt"
 	log "go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
+	turnstile "go-sms-issuer/turnstile"
 	"io"
 	"math"
 	"net"
@@ -20,6 +21,7 @@ const ErrorCannotValidateToken = "error:cannot-validate-token"
 const ErrorAddressMalformed = "error:address-malformed"
 const ErrorInternal = "error:internal"
 const ErrorSendingSms = "error:sending-sms"
+const ErrorInvalidCaptcha = "error:invalid-captcha"
 
 type ServerConfig struct {
 	Host           string `json:"host"`
@@ -30,13 +32,14 @@ type ServerConfig struct {
 }
 
 type ServerState struct {
-	irmaServerURL  string
-	tokenStorage   TokenStorage
-	smsSender      SmsSender
-	jwtCreator     JwtCreator
-	tokenGenerator TokenGenerator
-	smsTemplates   map[string]string
-	rateLimiter    *rate.TotalRateLimiter
+	irmaServerURL     string
+	tokenStorage      TokenStorage
+	smsSender         SmsSender
+	jwtCreator        JwtCreator
+	tokenGenerator    TokenGenerator
+	smsTemplates      map[string]string
+	rateLimiter       *rate.TotalRateLimiter
+	turnstileVerifier turnstile.TurnStileVerifier
 }
 
 type Server struct {
@@ -91,10 +94,15 @@ func NewServer(state *ServerState, config ServerConfig) (*Server, error) {
 type SendSmsPayload struct {
 	PhoneNumber string `json:"phone"`
 	Language    string `json:"language"`
+	Captcha     string `json:"captcha"`
 }
 
 func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Error.Printf("failed to close request body: %v", err)
+		}
+	}()
 
 	bodyContent, err := io.ReadAll(r.Body)
 
@@ -108,6 +116,17 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to parse json for body of send-sms request", err)
+		return
+	}
+
+	// Return an erro when the captcha is nil or empty
+	if body.Captcha == "" {
+		respondWithErr(w, http.StatusBadRequest, ErrorInvalidCaptcha, "captcha is required", fmt.Errorf("captcha is empty"))
+		return
+	}
+
+	if !state.turnstileVerifier.Verify(body.Captcha, getIpAddressForRequest(r)) {
+		respondWithErr(w, http.StatusBadRequest, ErrorInvalidCaptcha, "invalid captcha", fmt.Errorf("captcha validation failed"))
 		return
 	}
 
@@ -163,7 +182,12 @@ type VerifyResponse struct {
 }
 
 func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Error.Printf("failed to close request body: %v", err)
+		}
+	}()
+
 	bodyContent, err := io.ReadAll(r.Body)
 
 	if err != nil {

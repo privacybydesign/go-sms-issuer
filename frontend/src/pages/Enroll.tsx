@@ -123,6 +123,7 @@ export default function EnrollPage() {
               <p>{t('not_mobile')}</p>
               <label htmlFor="submit-token">{t('verification_code')}</label>
               <input type="text" required className="form-control verification-code-input" pattern="[0-9A-Za-z]{6}" />
+              
               <button className="hidden" id="submit-token" type="submit"></button>
             </div>
 

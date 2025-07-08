@@ -73,7 +73,11 @@ func (s *CmSmsSender) SendSms(phone, message string) error {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
 
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Error.Printf("failed to close request body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("CM gateway returned status code %d", resp.StatusCode)
