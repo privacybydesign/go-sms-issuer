@@ -230,11 +230,16 @@ func TestSendingSendRequest(t *testing.T) {
 // ------------------------------------------------------------------------
 
 func readCompleteBodyToString(r *http.Response) (string, error) {
-	defer r.Body.Close()
 	bytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		return "", err
 	}
+
+	err = r.Body.Close()
+	if err != nil {
+		return "", err
+	}
+
 	return string(bytes), nil
 }
 
@@ -330,7 +335,10 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileS
 	for i := 0; i < maxAttempts; i++ {
 		resp, err := http.Get("http://localhost:8081/")
 		if err == nil {
-			resp.Body.Close()
+			err = resp.Body.Close()
+			if err != nil {
+				t.Fatalf("error closing response body: %v", err)
+			}
 			break
 		}
 		// Wait 50ms before retrying

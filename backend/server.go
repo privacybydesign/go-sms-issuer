@@ -98,7 +98,11 @@ type SendSmsPayload struct {
 }
 
 func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Error.Printf("failed to close request body: %v", err)
+		}
+	}()
 
 	bodyContent, err := io.ReadAll(r.Body)
 
@@ -178,7 +182,12 @@ type VerifyResponse struct {
 }
 
 func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Error.Printf("failed to close request body: %v", err)
+		}
+	}()
+
 	bodyContent, err := io.ReadAll(r.Body)
 
 	if err != nil {

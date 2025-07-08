@@ -47,7 +47,11 @@ func (v *TurnStileValidator) Verify(token string, ip string) bool {
 		log.Error.Printf("turnstile request failed: %v", err)
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Error.Printf("failed to close request body: %v", err)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
