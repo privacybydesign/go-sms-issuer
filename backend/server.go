@@ -11,7 +11,11 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
+
+	"github.com/gorilla/mux"
 )
 
 // same error message bodies as the old Java code
@@ -42,6 +46,11 @@ type ServerState struct {
 	turnstileVerifier turnstile.TurnStileVerifier
 }
 
+type SpaHandler struct {
+	staticPath string
+	indexPath  string
+}
+
 type Server struct {
 	server *http.Server
 	config ServerConfig
@@ -61,30 +70,64 @@ func (s *Server) Stop() error {
 	return s.server.Shutdown(ctx)
 }
 
+// ServeHTTP inspects the URL path to locate a file within the static dir
+// on the SPA handler. If a file is found, it will be served. If not, the
+// file located at the index path on the SPA handler will be served. This
+// is suitable behavior for serving an SPA (single page application).
+// https://github.com/gorilla/mux?tab=readme-ov-file#serving-single-page-applications
+func (h SpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Join internally call path.Clean to prevent directory traversal
+	path := filepath.Join(h.staticPath, r.URL.Path)
+	// check whether a file exists or is a directory at the given path
+	fi, err := os.Stat(path)
+	if os.IsNotExist(err) || fi.IsDir() {
+		// file does not exist or path is a directory, serve index.html
+		http.ServeFile(w, r, filepath.Join(h.staticPath, h.indexPath))
+		return
+	}
+
+	if err != nil {
+		// if we got an error (that wasn't that the file doesn't exist) stating the
+		// file, return a 500 internal server error and stop
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// otherwise, use http.FileServer to serve the static file
+	http.FileServer(http.Dir(h.staticPath)).ServeHTTP(w, r)
+}
+
 func NewServer(state *ServerState, config ServerConfig) (*Server, error) {
-	// static file server for the web part on the root
-	fs := http.FileServer(http.Dir("../frontend/build"))
+	router := mux.NewRouter()
 
-	mux := http.NewServeMux()
-
-	mux.Handle("/", fs)
+	router.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
+		err := json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+		if err != nil {
+			log.Error.Fatalf("failed to write body to http response: %v", err)
+		}
+	})
 
 	// api to handle validating the phone number
-	mux.HandleFunc("/send", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/send", func(w http.ResponseWriter, r *http.Request) {
 		handleSendSms(state, w, r)
 	})
-	mux.HandleFunc("/verify", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/verify", func(w http.ResponseWriter, r *http.Request) {
 		handleVerify(state, w, r)
 	})
+	spa := SpaHandler{staticPath: "../frontend/build", indexPath: "index.html"}
+	router.PathPrefix("/").Handler(spa)
 
 	addr := fmt.Sprintf("%v:%v", config.Host, config.Port)
-	server := &http.Server{
+	srv := &http.Server{
+		Handler: router,
 		Addr:    addr,
-		Handler: mux,
+		// Good practice: enforce timeouts for servers you create!
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  15 * time.Second,
 	}
 
 	return &Server{
-		server: server,
+		server: srv,
 		config: config,
 	}, nil
 }
