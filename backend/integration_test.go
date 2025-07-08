@@ -67,6 +67,7 @@ func TestRateLimitingSingleClient(t *testing.T) {
 		}
 	}
 
+	// third request should be getting rate limited
 	resp, err := makeSendSmsRequest(phone, "en", testCaptha)
 	if err != nil {
 		t.Fatalf("failed to send sms request: %v", err)
@@ -278,6 +279,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileS
 	smsSender := newMockSmsSender(smsChan)
 
 	turnstileVerifier := NewMockTurnStileVerifier(turnstileSuccess)
+
 	ipRateLimitingPolicy := rate.RateLimitingPolicy{
 		Window: time.Minute * 30,
 		Limit:  10,
