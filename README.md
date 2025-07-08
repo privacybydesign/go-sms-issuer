@@ -1,8 +1,8 @@
 ## Generate a JWT keypair
 ```bash
-mkdir -p .secrets
-openssl genrsa 4096 > .secrets/priv.pem
-openssl rsa -in .secrets/priv.pem -pubout > .secrets/pub.pem
+mkdir -p local-secrets
+openssl genrsa 4096 > local-secrets/sms-issuer/priv.pem
+openssl rsa -in local-secrets/sms-issuer/priv.pem -pubout > local-secrets/irma-server/pub.pem
 ```
 
 ## Running in Docker Compose
@@ -31,10 +31,31 @@ irma server --no-tls --no-auth=false --port=8088 --config=./local-secrets/irma-c
 
 # setup sms issuer
 cd backend
-go run . --config ../local-secrets/local.json
+go run . --config ../local-secrets/config.json
 ```
 
 ## Configuration
+`.env` is the environment file for the frontend.
+```env
+TURNSTILE_SITE_KEY=
+```
+
+`local-secrets/irma-server/config.json` is the configuration file for the SMS issuer.
+```json
+{
+    "requestors": {
+        "sms_issuer":  {
+            "auth_method": "publickey",
+            "key_file": "/config/pub.pem",
+            "issue_perms": [
+                "irma-demo.sidn-pbdf.mobilenumber"
+            ]
+        }
+    }
+}
+```
+
+`local-secrets/sms-issuer/config.json` is the configuration file for the SMS issuer.
 ```json
 {
     "server_config": {
