@@ -103,6 +103,7 @@ func main() {
 
 func createTokenStorage(config *Config) (TokenStorage, error) {
 	if config.StorageType == "redis" {
+		log.Info.Printf("Using redis token storage")
 		client, err := redis.NewRedisClient(&config.RedisConfig)
 		if err != nil {
 			return nil, err
@@ -110,6 +111,7 @@ func createTokenStorage(config *Config) (TokenStorage, error) {
 		return NewRedisTokenStorage(client), nil
 	}
 	if config.StorageType == "redis_sentinel" {
+		log.Info.Printf("Using redis sentinal storage")
 		client, err := redis.NewRedisSentinelClient(&config.RedisSentinelConfig)
 		if err != nil {
 			return nil, err
@@ -117,6 +119,7 @@ func createTokenStorage(config *Config) (TokenStorage, error) {
 		return NewRedisTokenStorage(client), nil
 	}
 	if config.StorageType == "memory" {
+		log.Info.Printf("Using in memory storage")
 		return NewInMemoryTokenStorage(), nil
 	}
 	return nil, fmt.Errorf("%v is not a valid storage type", config.StorageType)
