@@ -276,6 +276,7 @@ func (m *mockJwtCreator) CreateJwt(phone string) (string, error) {
 
 func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileSuccess bool) *Server {
 	smsSender := newMockSmsSender(smsChan)
+	turnstileVerifier := NewMockTurnStileVerifier(turnstileSuccess)
 
 	turnstileVerifier := NewMockTurnStileVerifier(turnstileSuccess)
 	ipRateLimitingPolicy := rate.RateLimitingPolicy{
