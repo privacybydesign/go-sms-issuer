@@ -11,20 +11,54 @@ import (
 
 	log "go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
+	"go-sms-issuer/turnstile"
 )
 
 // for testing purposes it's useful to have a static token
 const testToken = "123456"
+const testCaptha = "test-captcha"
+
+func TestEmptyCaptcha(t *testing.T) {
+	server := createAndStartTestServer(t, nil, true)
+	defer stopServer(server)
+
+	phone := "+31612345678"
+
+	// first request should be fine
+	resp, err := makeSendSmsRequest(phone, "en", "")
+	if err != nil {
+		t.Fatalf("failed to send sms request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected BadRequest for missing captcha, got: %v", resp.StatusCode)
+	}
+}
+
+func TestWithCaptchaButFailed(t *testing.T) {
+	server := createAndStartTestServer(t, nil, false)
+	defer stopServer(server)
+
+	phone := "+31612345678"
+
+	// first request should be fine
+	resp, err := makeSendSmsRequest(phone, "en", testCaptha)
+	if err != nil {
+		t.Fatalf("failed to send sms request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected BadRequest for missing captcha, got: %v", resp.StatusCode)
+	}
+}
 
 func TestRateLimitingSingleClient(t *testing.T) {
-	server := createAndStartTestServer(t, nil)
+	server := createAndStartTestServer(t, nil, true)
 	defer stopServer(server)
 
 	phone := "+31612345678"
 
 	for i := 1; i <= 3; i++ {
 		// first request should be fine
-		resp, err := makeSendSmsRequest(phone, "en")
+		resp, err := makeSendSmsRequest(phone, "en", testCaptha)
 		if err != nil {
 			t.Fatalf("failed to send sms request: %v", err)
 		}
@@ -34,7 +68,7 @@ func TestRateLimitingSingleClient(t *testing.T) {
 	}
 
 	// third request should be getting rate limited
-	resp, err := makeSendSmsRequest(phone, "en")
+	resp, err := makeSendSmsRequest(phone, "en", testCaptha)
 	if err != nil {
 		t.Fatalf("failed to send sms request: %v", err)
 	}
@@ -44,12 +78,12 @@ func TestRateLimitingSingleClient(t *testing.T) {
 }
 
 func TestUnsupportedLanguageFails(t *testing.T) {
-	server := createAndStartTestServer(t, nil)
+	server := createAndStartTestServer(t, nil, true)
 	defer stopServer(server)
 
 	phone := "+31687654321"
 
-	resp, err := makeSendSmsRequest(phone, "fr")
+	resp, err := makeSendSmsRequest(phone, "fr", testCaptha)
 	if err != nil {
 		t.Fatalf("failed to send sms request: %v", err)
 	}
@@ -66,12 +100,12 @@ func TestUnsupportedLanguageFails(t *testing.T) {
 func TestSmsIsBeingSent(t *testing.T) {
 	// channel must be buffered
 	smsReceiver := make(chan smsMessage, 1)
-	server := createAndStartTestServer(t, &smsReceiver)
+	server := createAndStartTestServer(t, &smsReceiver, true)
 	defer stopServer(server)
 
 	phone := "+31687654321"
 
-	resp, err := makeSendSmsRequest(phone, "en")
+	resp, err := makeSendSmsRequest(phone, "en", testCaptha)
 	if err != nil {
 		t.Fatalf("failed to send sms request: %v", err)
 	}
@@ -89,7 +123,7 @@ func TestSmsIsBeingSent(t *testing.T) {
 }
 
 func TestVerifyWrongPhoneNumberFails(t *testing.T) {
-	server := createAndStartTestServer(t, nil)
+	server := createAndStartTestServer(t, nil, true)
 	defer stopServer(server)
 
 	phone := "+31612345678"
@@ -109,12 +143,12 @@ func TestVerifyWrongPhoneNumberFails(t *testing.T) {
 }
 
 func TestWrongTokenFails(t *testing.T) {
-	server := createAndStartTestServer(t, nil)
+	server := createAndStartTestServer(t, nil, true)
 	defer stopServer(server)
 
 	phone := "+31612345678"
 
-	resp, err := makeSendSmsRequest(phone, "en")
+	resp, err := makeSendSmsRequest(phone, "en", testCaptha)
 
 	if err != nil {
 		t.Fatalf("send sms request failed: %v", err)
@@ -140,12 +174,12 @@ func TestWrongTokenFails(t *testing.T) {
 }
 
 func TestSendingSendRequest(t *testing.T) {
-	server := createAndStartTestServer(t, nil)
+	server := createAndStartTestServer(t, nil, true)
 	defer stopServer(server)
 
 	phone := "+31612345678"
 
-	resp, err := makeSendSmsRequest(phone, "en")
+	resp, err := makeSendSmsRequest(phone, "en", testCaptha)
 
 	if err != nil {
 		t.Fatalf("send sms request failed: %v", err)
@@ -231,14 +265,20 @@ func (m *mockSmsSender) SendSms(phone, mess string) error {
 	return nil
 }
 
+func NewMockTurnStileVerifier(turnstileSuccess bool) turnstile.TurnStileVerifier {
+	return &turnstile.MockTurnStileValidator{Success: turnstileSuccess}
+}
+
 type mockJwtCreator struct{}
 
 func (m *mockJwtCreator) CreateJwt(phone string) (string, error) {
 	return "JWT", nil
 }
 
-func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
+func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileSuccess bool) *Server {
 	smsSender := newMockSmsSender(smsChan)
+
+	turnstileVerifier := NewMockTurnStileVerifier(turnstileSuccess)
 
 	state := ServerState{
 		irmaServerURL:  "http://localhost:8080",
@@ -253,6 +293,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
 			rate.NewRateLimiter(rate.NewInMemoryRateLimiterStorage(), rate.NewSystemClock(), rate.DefaultTimeoutPolicy),
 			rate.NewRateLimiter(rate.NewInMemoryRateLimiterStorage(), rate.NewSystemClock(), rate.DefaultTimeoutPolicy),
 		),
+		turnstileVerifier: turnstileVerifier,
 	}
 
 	config := ServerConfig{
@@ -293,10 +334,11 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage) *Server {
 	return server
 }
 
-func makeSendSmsRequest(phone, language string) (*http.Response, error) {
+func makeSendSmsRequest(phone, language string, captha string) (*http.Response, error) {
 	payload := SendSmsPayload{
 		PhoneNumber: phone,
 		Language:    language,
+		Captcha:     captha,
 	}
 	json, err := json.Marshal(payload)
 	if err != nil {
