@@ -44,8 +44,10 @@ func NewRedisSentinelClient(config *RedisSentinelConfig) (*redis.Client, error) 
 	sentinelOptions := &redis.FailoverOptions{
 		MasterName:       config.MasterName,
 		SentinelAddrs:    []string{addr},
+		Username:         config.SentinelUsername,
 		Password:         config.Password,
 		SentinelUsername: config.SentinelUsername,
+		SentinelPassword: config.Password,
 	}
 
 	client := redis.NewFailoverClient(sentinelOptions)
