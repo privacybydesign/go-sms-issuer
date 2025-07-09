@@ -49,6 +49,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Use secret in a script
+        run: echo "The secret is ${{ secrets.MY_SECRET_KEY }}"
+
       - name: Build container and export to local Docker
         uses: docker/build-push-action@v5
         with:
