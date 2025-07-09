@@ -34,6 +34,9 @@ jobs:
           working-directory: frontend
           run: npm run build
 
+        - name: Use secret in a script
+          run: echo "The secret is ${{ secrets.TURNSTILE_SITE_KEY }}"
+
     analyze-go:
       runs-on: ubuntu-latest
       steps:
