@@ -5,8 +5,7 @@ COPY frontend .
 # Accept build-time argument for the env var
 ARG TURNSTILE_SITE_KEY
 
-# Create .env file using the input variable
-RUN echo "VITE_TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}" > .env
+ENV VITE_TURNSTILE_SITE_KEY=$TURNSTILE_SITE_KEY
 
 RUN npm install
 RUN npm run build
