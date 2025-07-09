@@ -49,9 +49,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Use secret in a script
-        run: echo "The secret is ${{ secrets.TURNSTILE_SITE_KEY }}"
-
       - name: Build container and export to local Docker
         uses: docker/build-push-action@v5
         with:
@@ -86,3 +83,5 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            TURNSTILE_SITE_KEY=${{ secrets.TURNSTILE_SITE_KEY }}
