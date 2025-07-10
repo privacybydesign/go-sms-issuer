@@ -5,7 +5,6 @@ import { PhoneInput } from 'react-international-phone';
 import { useState } from 'react';
 import parsePhoneNumberFromString from 'libphonenumber-js';
 import Turnstile from 'react-turnstile';
-import { ca } from 'intl-tel-input/i18n';
 
 export default function ValidatePage() {
   const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
@@ -94,7 +93,7 @@ export default function ValidatePage() {
             <Link to={`/${i18n.language}`} id="back-button">
               {t('back')}
             </Link>
-            <button id="submit-button" >{t('confirm')}</button>
+            <button id="submit-button" disabled={!captcha}>{t('confirm')}</button>
           </div>
         </footer>
       </form>
