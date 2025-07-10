@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   PhoneInput,
@@ -23,6 +23,7 @@ export default function IndexPage() {
   const { t, i18n } = useTranslation();
   const { phoneNumber, setPhoneNumber} = useAppContext();
   const isValid = isPhoneValid(phoneNumber || '');
+  const [hasTyped, setHasTyped] = useState(false);
   const navigate = useNavigate();
 
   const countries = defaultCountries.filter((country) => {
@@ -51,11 +52,15 @@ export default function IndexPage() {
             <PhoneInput
               defaultCountry="nl"
               value={phoneNumber}
-              onChange={setPhoneNumber}
+              onChange={(value) => {
+                setPhoneNumber(value);
+                if (!hasTyped && value.length > 0) setHasTyped(true);
+              }}
               countries={countries}
             />
             <p>
-              {!isValid && <div className="warning">{t('index_phone_not_valid')}</div>}
+              {!isValid && hasTyped && <div className="warning">{t('index_phone_not_valid')}</div>}
+              {isValid && hasTyped && <div className="success">{t('index_phone_valid')}</div>}
             </p>
           </div>
         </main>

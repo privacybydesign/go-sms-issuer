@@ -84,7 +84,7 @@ export default function ValidatePage() {
               value={phoneNumber}
               disabled={true}
             />
-            <br/>
+            <p>{t('validate_bot_control')}</p>
             <Turnstile sitekey={siteKey} onSuccess={(token) => setCaptcha(token || '')} />
           </div>
         </main>

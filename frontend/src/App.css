@@ -206,6 +206,10 @@ footer button[disabled] {
 	color: #C30025;
 	font-size: small;
 }
+.success {
+	color: #00973A;
+	font-size: small;
+}
 .verification-code-input {
 	text-transform: uppercase;
 }
