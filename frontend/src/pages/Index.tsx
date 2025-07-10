@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   PhoneInput,
@@ -23,7 +23,7 @@ export default function IndexPage() {
   const { t, i18n } = useTranslation();
   const { phoneNumber, setPhoneNumber} = useAppContext();
   const isValid = isPhoneValid(phoneNumber || '');
-  const [hasTyped, setHasTyped] = React.useState(false);
+  const [hasTyped, setHasTyped] = useState(false);
   const navigate = useNavigate();
 
   const countries = defaultCountries.filter((country) => {
