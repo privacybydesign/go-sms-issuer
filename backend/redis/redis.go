@@ -13,7 +13,7 @@ type RedisSentinelConfig struct {
 	Password         string `json:"password"`
 	MasterName       string `json:"master_name"`
 	SentinelUsername string `json:"sentinel_username"`
-	Namespace string `json:"namespace"`
+	Namespace        string `json:"namespace"`
 }
 
 type RedisConfig struct {
