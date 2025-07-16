@@ -108,7 +108,7 @@ func createTokenStorage(config *Config) (TokenStorage, error) {
 		if err != nil {
 			return nil, err
 		}
-		return NewRedisTokenStorage(client), nil
+		return NewRedisTokenStorage(client, config.RedisConfig.Namespace), nil
 	}
 	if config.StorageType == "redis_sentinel" {
 		log.Info.Printf("Using redis sentinal storage")
@@ -116,7 +116,7 @@ func createTokenStorage(config *Config) (TokenStorage, error) {
 		if err != nil {
 			return nil, err
 		}
-		return NewRedisTokenStorage(client), nil
+		return NewRedisTokenStorage(client, config.RedisSentinelConfig.Namespace), nil
 	}
 	if config.StorageType == "memory" {
 		log.Info.Printf("Using in memory storage")
@@ -141,8 +141,8 @@ func createRateLimiter(config *Config) (*rate.TotalRateLimiter, error) {
 			return nil, err
 		}
 		return rate.NewTotalRateLimiter(
-			rate.NewRedisRateLimiter(client, ipRateLimitingPolicy),
-			rate.NewRedisRateLimiter(client, phoneRateLimitingPolicy),
+			rate.NewRedisRateLimiter(client, config.RedisConfig.Namespace, ipRateLimitingPolicy),
+			rate.NewRedisRateLimiter(client, config.RedisConfig.Namespace, phoneRateLimitingPolicy),
 		), nil
 	}
 	if config.StorageType == "redis_sentinel" {
@@ -151,8 +151,8 @@ func createRateLimiter(config *Config) (*rate.TotalRateLimiter, error) {
 			return nil, err
 		}
 		return rate.NewTotalRateLimiter(
-			rate.NewRedisRateLimiter(client, ipRateLimitingPolicy),
-			rate.NewRedisRateLimiter(client, phoneRateLimitingPolicy),
+			rate.NewRedisRateLimiter(client, config.RedisSentinelConfig.Namespace, ipRateLimitingPolicy),
+			rate.NewRedisRateLimiter(client, config.RedisSentinelConfig.Namespace, phoneRateLimitingPolicy),
 		), nil
 	}
 	if config.StorageType == "memory" {

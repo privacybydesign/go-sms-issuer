@@ -81,14 +81,16 @@ TURNSTILE_SITE_KEY=
     "redis_config": {
         "host": "redis",
         "port": 6379,
-        "password": "password"
+        "password": "password",
+        "namespace": "sms-issuer"
     },
     "redis_sentinel_config": {
         "sentinel_host": "redis-sentinel",
         "sentinel_port": 26379,
         "sentinel_username": "sentinel_user",
         "password": "password123",
-        "master_name": "mymaster"
+        "master_name": "mymaster",
+        "namespace": "sms-issuer"
     },
     "turnstile_backend": "turnstile",
     "turnstile_configuration": {

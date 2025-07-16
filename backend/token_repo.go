@@ -21,11 +21,12 @@ func NewInMemoryTokenStorage() *InMemoryTokenStorage {
 }
 
 type RedisTokenStorage struct {
-	client *redis.Client
+	client    *redis.Client
+	namespace string
 }
 
-func NewRedisTokenStorage(client *redis.Client) *RedisTokenStorage {
-	return &RedisTokenStorage{client: client}
+func NewRedisTokenStorage(client *redis.Client, namespace string) *RedisTokenStorage {
+	return &RedisTokenStorage{client: client, namespace: namespace}
 }
 
 // Should be safe to use in concurreny
@@ -47,25 +48,25 @@ type TokenStorage interface {
 
 // ------------------------------------------------------------------------------
 
-func createKey(phone string) string {
-	return fmt.Sprintf("sms-issuer:token:%v", phone)
+func createKey(namespace, phone string) string {
+	return fmt.Sprintf("%s:token:%s", namespace, phone)
 }
 
 const Timeout time.Duration = 24 * time.Hour
 
 func (s *RedisTokenStorage) StoreToken(phone, token string) error {
 	ctx := context.Background()
-	return s.client.Set(ctx, createKey(phone), token, Timeout).Err()
+	return s.client.Set(ctx, createKey(s.namespace, phone), token, Timeout).Err()
 }
 
 func (s *RedisTokenStorage) RetrieveToken(phone string) (string, error) {
 	ctx := context.Background()
-	return s.client.Get(ctx, createKey(phone)).Result()
+	return s.client.Get(ctx, createKey(s.namespace, phone)).Result()
 }
 
 func (s *RedisTokenStorage) RemoveToken(phone string) error {
 	ctx := context.Background()
-	return s.client.Del(ctx, createKey(phone)).Err()
+	return s.client.Del(ctx, createKey(s.namespace, phone)).Err()
 }
 
 // ------------------------------------------------------------------------------
