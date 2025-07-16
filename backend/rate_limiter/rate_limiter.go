@@ -3,6 +3,7 @@ package rate_limiter
 import (
 	"context"
 	"fmt"
+	"go-sms-issuer/logging"
 	"sync"
 	"time"
 
@@ -37,12 +38,14 @@ func (r *RedisRateLimiter) Allow(key string) (bool, time.Duration, error) {
 	key = fmt.Sprintf("%s:%s", r.namespace, key)
 	count, err := r.client.Incr(r.ctx, key).Result()
 	if err != nil {
+		logging.Error.Printf("Redis Incr failed: %v\n", err)
 		return false, 0, err
 	}
 	if count == 1 {
 		// First request: set expiry
 		err = r.client.Expire(r.ctx, key, r.policy.Window).Err()
 		if err != nil {
+			logging.Error.Printf("Redis Expire failed: %v\n", err)
 			return false, 0, err
 		}
 	}
