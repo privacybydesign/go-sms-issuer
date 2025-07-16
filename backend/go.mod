@@ -4,6 +4,7 @@ go 1.23.2
 
 require (
 	github.com/golang-jwt/jwt/v4 v4.5.2
+	github.com/gorilla/mux v1.8.1
 	github.com/privacybydesign/irmago v0.16.0
 	github.com/redis/go-redis/v9 v9.7.3
 	golang.org/x/exp v0.0.0-20241217172543-b2144cdd0a67
@@ -28,7 +29,6 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
-	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect

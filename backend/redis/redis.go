@@ -13,12 +13,14 @@ type RedisSentinelConfig struct {
 	Password         string `json:"password"`
 	MasterName       string `json:"master_name"`
 	SentinelUsername string `json:"sentinel_username"`
+	Namespace        string `json:"namespace"`
 }
 
 type RedisConfig struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Password string `json:"password"`
+	Host      string `json:"host"`
+	Port      int    `json:"port"`
+	Password  string `json:"password"`
+	Namespace string `json:"namespace"`
 }
 
 func NewRedisClient(config *RedisConfig) (*redis.Client, error) {

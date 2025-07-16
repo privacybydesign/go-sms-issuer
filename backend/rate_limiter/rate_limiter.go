@@ -19,20 +19,22 @@ type RateLimitingPolicy struct {
 }
 
 type RedisRateLimiter struct {
-	client *redis.Client
-	ctx    context.Context
-	policy RateLimitingPolicy
+	namespace string
+	client    *redis.Client
+	ctx       context.Context
+	policy    RateLimitingPolicy
 }
 
-func NewRedisRateLimiter(redis *redis.Client, policy RateLimitingPolicy) *RedisRateLimiter {
+func NewRedisRateLimiter(redis *redis.Client, namespace string, policy RateLimitingPolicy) *RedisRateLimiter {
 	return &RedisRateLimiter{
-
 		client: redis,
 		ctx:    context.Background(),
 		policy: policy,
 	}
 }
+
 func (r *RedisRateLimiter) Allow(key string) (bool, time.Duration, error) {
+	key = fmt.Sprintf("%s:%s", r.namespace, key)
 	count, err := r.client.Incr(r.ctx, key).Result()
 	if err != nil {
 		return false, 0, err
@@ -115,8 +117,8 @@ func NewTotalRateLimiter(ip, phone RateLimiter) *TotalRateLimiter {
 }
 
 func (l *TotalRateLimiter) Allow(ip, phone string) (allow bool, timeoutRemaining time.Duration) {
-	ipKey := fmt.Sprintf("sms-issuer:ip:%s", ip)
-	phoneKey := fmt.Sprintf("sms-issuer:phone:%s", phone)
+	ipKey := fmt.Sprintf("ip:%s", ip)
+	phoneKey := fmt.Sprintf("phone:%s", phone)
 
 	allowPhone, timeRemainingPhone, err := l.phone.Allow(phoneKey)
 	if err != nil {
