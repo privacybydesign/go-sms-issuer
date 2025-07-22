@@ -38,7 +38,7 @@ func (r *RedisRateLimiter) Allow(key string) (bool, time.Duration, error) {
 	key = fmt.Sprintf("%s:%s", r.namespace, key)
 	count, err := r.client.Incr(r.ctx, key).Result()
 	if err != nil {
-		logging.Error.Printf("Redis Incr failed: %v\n", err)
+		logging.Error.Printf("Redis Incr failed: %v\n %v\n", err, key)
 		return false, 0, err
 	}
 	if count == 1 {
