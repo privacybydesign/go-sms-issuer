@@ -28,9 +28,10 @@ type RedisRateLimiter struct {
 
 func NewRedisRateLimiter(redis *redis.Client, namespace string, policy RateLimitingPolicy) *RedisRateLimiter {
 	return &RedisRateLimiter{
-		client: redis,
-		ctx:    context.Background(),
-		policy: policy,
+		client:    redis,
+		ctx:       context.Background(),
+		policy:    policy,
+		namespace: namespace,
 	}
 }
 
