@@ -16,6 +16,7 @@ export default function EnrollPage() {
   const [message, setMessage] = useState<string | undefined>(undefined);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
   const { phoneNumber, setPhoneNumber } = useAppContext();
+  const [token, setToken] = useState("");
 
 
   useEffect(() => {
@@ -63,6 +64,7 @@ export default function EnrollPage() {
         .then(() => {
           setMessage(t("phone_add_success"));
           setPhoneNumber("");
+          setToken("");
           navigate(`/${i18n.language}/done`);
         })
         .catch((e: string) => {
@@ -84,9 +86,6 @@ export default function EnrollPage() {
     e.preventDefault();
     setErrorMessage(undefined);
 
-    // Get the token from the input field
-    const tokenInput = document.querySelector('.verification-code-input') as HTMLInputElement;
-    const token = tokenInput.value.trim();
     if (!token || token.length !== 6 || !phoneNumber) {
       navigate(`/${i18n.language}/error`);
       return;
@@ -150,12 +149,10 @@ export default function EnrollPage() {
                 type="text"
                 required
                 className="form-control verification-code-input"
+                value={token}
                 pattern="[0-9A-Za-z]{6}"
                 style={{ textTransform: "uppercase" }}
-                onInput={(e) => {
-                  const input = e.target as HTMLInputElement;
-                  input.value = input.value.toUpperCase();
-                }}
+                onChange={(e) => setToken(e.target.value.toUpperCase())}
               />
 
               <button
