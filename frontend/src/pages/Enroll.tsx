@@ -153,6 +153,7 @@ export default function EnrollPage() {
                 pattern="[0-9A-Za-z]{6}"
                 style={{ textTransform: "uppercase" }}
                 onChange={(e) => setToken(e.target.value.toUpperCase())}
+                autoFocus
               />
 
               <button
