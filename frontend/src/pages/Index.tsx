@@ -65,6 +65,7 @@ export default function IndexPage() {
               value={phoneNumber}
               onChange={onChange}
               countries={countries}
+              autoFocus
             />
             <p>
               {showError && <div className="warning">{t('index_phone_not_valid')}</div>}
