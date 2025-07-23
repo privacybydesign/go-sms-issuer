@@ -96,45 +96,68 @@ export default function EnrollPage() {
     <>
       <form id="container" onSubmit={enroll}>
         <header>
-          <h1>{t('index_header')}</h1>
+          <h1>{t("index_header")}</h1>
         </header>
         <main>
           <div className="sms-form">
             <div id="block-token">
-              {(!errorMessage && message) && <div id="status-bar" className="alert alert-success" role="alert">
-                <div className="status-container">
-                  <div id="status">{message}</div>
+              {!errorMessage && message && (
+                <div
+                  id="status-bar"
+                  className="alert alert-success"
+                  role="alert"
+                >
+                  <div className="status-container">
+                    <div id="status">{message}</div>
+                  </div>
                 </div>
-              </div>
-              }
-              {errorMessage && <div id="status-bar" className="alert alert-danger" role="alert">
-                <div className="status-container">
-                  <div id="status">{errorMessage}</div>
+              )}
+              {errorMessage && (
+                <div
+                  id="status-bar"
+                  className="alert alert-danger"
+                  role="alert"
+                >
+                  <div className="status-container">
+                    <div id="status">{errorMessage}</div>
+                  </div>
                 </div>
-              </div>
-              }
-              <p>{t('receive_sms')}</p>
-              <b>{t('steps')}</b>
+              )}
+              <p>{t("receive_sms")}</p>
+              <b>{t("steps")}</b>
               <ol>
-                <li>{t('step_1')}</li>
-                <li>{t('step_2')}</li>
-                <li>{t('step_3')}</li>
+                <li>{t("step_1")}</li>
+                <li>{t("step_2")}</li>
+                <li>{t("step_3")}</li>
               </ol>
-              <p>{t('not_mobile')}</p>
-              <label htmlFor="submit-token">{t('verification_code')}</label>
-              <input type="text" required className="form-control verification-code-input" pattern="[0-9A-Za-z]{6}" />
-              
-              <button className="hidden" id="submit-token" type="submit"></button>
-            </div>
+              <p>{t("not_mobile")}</p>
+              <label htmlFor="submit-token">{t("verification_code")}</label>
+              <input
+                type="text"
+                required
+                className="form-control verification-code-input"
+                pattern="[0-9A-Za-z]{6}"
+                style={{ textTransform: "uppercase" }}
+                onInput={(e) => {
+                  const input = e.target as HTMLInputElement;
+                  input.value = input.value.toUpperCase();
+                }}
+              />
 
+              <button
+                className="hidden"
+                id="submit-token"
+                type="submit"
+              ></button>
+            </div>
           </div>
         </main>
         <footer>
           <div className="actions">
             <Link to={`/${i18n.language}/validate`} id="back-button">
-              {t('back')}
+              {t("back")}
             </Link>
-            <button id="submit-button" >{t('verify')}</button>
+            <button id="submit-button">{t("verify")}</button>
           </div>
         </footer>
       </form>
