@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   PhoneInput,
@@ -23,6 +23,7 @@ export default function IndexPage() {
   const { t, i18n } = useTranslation();
   const { phoneNumber, setPhoneNumber} = useAppContext();
   const isValid = isPhoneValid(phoneNumber || '');
+  const [showError, setShowError] = useState(false);
   const navigate = useNavigate();
 
   const countries = defaultCountries.filter((country) => {
@@ -32,10 +33,21 @@ export default function IndexPage() {
       'pl', 'pt', 'ro', 'si', 'sk', 'es', 'cz', 'gb', 'se', 'ch'].includes(iso2);
   });
 
+  const onChange = (value: string) => {
+    setPhoneNumber(value);
+    if (showError && isValid) {
+      setShowError(false);
+    }
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isValid) {
+      setShowError(true);
+      return;
+    }
     navigate(`/${i18n.language}/validate`);
-  }
+  };
 
   return (
     <>
@@ -51,18 +63,19 @@ export default function IndexPage() {
             <PhoneInput
               defaultCountry="nl"
               value={phoneNumber}
-              onChange={setPhoneNumber}
+              onChange={onChange}
               countries={countries}
+              autoFocus
             />
             <p>
-              {!isValid && <div className="warning">{t('index_phone_not_valid')}</div>}
+              {showError && <div className="warning">{t('index_phone_not_valid')}</div>}
             </p>
           </div>
         </main>
         <footer>
           <div className="actions">
             <div></div>
-            <button id="submit-button" disabled={!isValid} type="submit">{t('index_start')}</button>
+            <button id="submit-button" type="submit">{t('index_start')}</button>
           </div>
         </footer>
       </form>

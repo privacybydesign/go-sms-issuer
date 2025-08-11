@@ -3,6 +3,7 @@ package rate_limiter
 import (
 	"context"
 	"fmt"
+	"go-sms-issuer/logging"
 	"sync"
 	"time"
 
@@ -19,28 +20,33 @@ type RateLimitingPolicy struct {
 }
 
 type RedisRateLimiter struct {
-	client *redis.Client
-	ctx    context.Context
-	policy RateLimitingPolicy
+	namespace string
+	client    *redis.Client
+	ctx       context.Context
+	policy    RateLimitingPolicy
 }
 
-func NewRedisRateLimiter(redis *redis.Client, policy RateLimitingPolicy) *RedisRateLimiter {
+func NewRedisRateLimiter(redis *redis.Client, namespace string, policy RateLimitingPolicy) *RedisRateLimiter {
 	return &RedisRateLimiter{
-
-		client: redis,
-		ctx:    context.Background(),
-		policy: policy,
+		client:    redis,
+		ctx:       context.Background(),
+		policy:    policy,
+		namespace: namespace,
 	}
 }
+
 func (r *RedisRateLimiter) Allow(key string) (bool, time.Duration, error) {
+	key = fmt.Sprintf("%s:%s", r.namespace, key)
 	count, err := r.client.Incr(r.ctx, key).Result()
 	if err != nil {
+		logging.Error.Printf("Redis Incr failed: %v\n", err)
 		return false, 0, err
 	}
 	if count == 1 {
 		// First request: set expiry
 		err = r.client.Expire(r.ctx, key, r.policy.Window).Err()
 		if err != nil {
+			logging.Error.Printf("Redis Expire failed: %v\n", err)
 			return false, 0, err
 		}
 	}
@@ -115,8 +121,8 @@ func NewTotalRateLimiter(ip, phone RateLimiter) *TotalRateLimiter {
 }
 
 func (l *TotalRateLimiter) Allow(ip, phone string) (allow bool, timeoutRemaining time.Duration) {
-	ipKey := fmt.Sprintf("sms-issuer:ip:%s", ip)
-	phoneKey := fmt.Sprintf("sms-issuer:phone:%s", phone)
+	ipKey := fmt.Sprintf("ip:%s", ip)
+	phoneKey := fmt.Sprintf("phone:%s", phone)
 
 	allowPhone, timeRemainingPhone, err := l.phone.Allow(phoneKey)
 	if err != nil {
@@ -128,7 +134,7 @@ func (l *TotalRateLimiter) Allow(ip, phone string) (allow bool, timeoutRemaining
 		return false, 30 * time.Minute
 	}
 
-	if !(allowIp && allowPhone) {
+	if !allowIp || !allowPhone {
 		return false, max(timeRemainingIp, timeRemainingPhone)
 	}
 

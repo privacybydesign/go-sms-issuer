@@ -11,3 +11,7 @@ vendor
 # Node files
 node_modules/
 build/
+
+local-secrets/
+.env
+local-secrets/sms-issuer/config.json

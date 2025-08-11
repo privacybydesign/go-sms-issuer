@@ -6,11 +6,16 @@ import (
 	"fmt"
 	log "go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
+	turnstile "go-sms-issuer/turnstile"
 	"io"
 	"math"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
+
+	"github.com/gorilla/mux"
 )
 
 // same error message bodies as the old Java code
@@ -20,6 +25,7 @@ const ErrorCannotValidateToken = "error:cannot-validate-token"
 const ErrorAddressMalformed = "error:address-malformed"
 const ErrorInternal = "error:internal"
 const ErrorSendingSms = "error:sending-sms"
+const ErrorInvalidCaptcha = "error:invalid-captcha"
 
 type ServerConfig struct {
 	Host           string `json:"host"`
@@ -30,13 +36,19 @@ type ServerConfig struct {
 }
 
 type ServerState struct {
-	irmaServerURL  string
-	tokenStorage   TokenStorage
-	smsSender      SmsSender
-	jwtCreator     JwtCreator
-	tokenGenerator TokenGenerator
-	smsTemplates   map[string]string
-	rateLimiter    *rate.TotalRateLimiter
+	irmaServerURL     string
+	tokenStorage      TokenStorage
+	smsSender         SmsSender
+	jwtCreator        JwtCreator
+	tokenGenerator    TokenGenerator
+	smsTemplates      map[string]string
+	rateLimiter       *rate.TotalRateLimiter
+	turnstileVerifier turnstile.TurnStileVerifier
+}
+
+type SpaHandler struct {
+	staticPath string
+	indexPath  string
 }
 
 type Server struct {
@@ -58,30 +70,64 @@ func (s *Server) Stop() error {
 	return s.server.Shutdown(ctx)
 }
 
+// ServeHTTP inspects the URL path to locate a file within the static dir
+// on the SPA handler. If a file is found, it will be served. If not, the
+// file located at the index path on the SPA handler will be served. This
+// is suitable behavior for serving an SPA (single page application).
+// https://github.com/gorilla/mux?tab=readme-ov-file#serving-single-page-applications
+func (h SpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Join internally call path.Clean to prevent directory traversal
+	path := filepath.Join(h.staticPath, r.URL.Path)
+	// check whether a file exists or is a directory at the given path
+	fi, err := os.Stat(path)
+	if os.IsNotExist(err) || fi.IsDir() {
+		// file does not exist or path is a directory, serve index.html
+		http.ServeFile(w, r, filepath.Join(h.staticPath, h.indexPath))
+		return
+	}
+
+	if err != nil {
+		// if we got an error (that wasn't that the file doesn't exist) stating the
+		// file, return a 500 internal server error and stop
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// otherwise, use http.FileServer to serve the static file
+	http.FileServer(http.Dir(h.staticPath)).ServeHTTP(w, r)
+}
+
 func NewServer(state *ServerState, config ServerConfig) (*Server, error) {
-	// static file server for the web part on the root
-	fs := http.FileServer(http.Dir("../frontend/build"))
+	router := mux.NewRouter()
 
-	mux := http.NewServeMux()
-
-	mux.Handle("/", fs)
+	router.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
+		err := json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+		if err != nil {
+			log.Error.Fatalf("failed to write body to http response: %v", err)
+		}
+	})
 
 	// api to handle validating the phone number
-	mux.HandleFunc("/send", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/send", func(w http.ResponseWriter, r *http.Request) {
 		handleSendSms(state, w, r)
 	})
-	mux.HandleFunc("/verify", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/verify", func(w http.ResponseWriter, r *http.Request) {
 		handleVerify(state, w, r)
 	})
+	spa := SpaHandler{staticPath: "../frontend/build", indexPath: "index.html"}
+	router.PathPrefix("/").Handler(spa)
 
 	addr := fmt.Sprintf("%v:%v", config.Host, config.Port)
-	server := &http.Server{
+	srv := &http.Server{
+		Handler: router,
 		Addr:    addr,
-		Handler: mux,
+		// Good practice: enforce timeouts for servers you create!
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  15 * time.Second,
 	}
 
 	return &Server{
-		server: server,
+		server: srv,
 		config: config,
 	}, nil
 }
@@ -91,9 +137,16 @@ func NewServer(state *ServerState, config ServerConfig) (*Server, error) {
 type SendSmsPayload struct {
 	PhoneNumber string `json:"phone"`
 	Language    string `json:"language"`
+	Captcha     string `json:"captcha"`
 }
 
 func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Error.Printf("failed to close request body: %v", err)
+		}
+	}()
+
 	bodyContent, err := io.ReadAll(r.Body)
 
 	if err != nil {
@@ -106,6 +159,17 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to parse json for body of send-sms request", err)
+		return
+	}
+
+	// Return an erro when the captcha is nil or empty
+	if body.Captcha == "" {
+		respondWithErr(w, http.StatusBadRequest, ErrorInvalidCaptcha, "captcha is required", fmt.Errorf("captcha is empty"))
+		return
+	}
+
+	if !state.turnstileVerifier.Verify(body.Captcha, getIpAddressForRequest(r)) {
+		respondWithErr(w, http.StatusBadRequest, ErrorInvalidCaptcha, "invalid captcha", fmt.Errorf("captcha validation failed"))
 		return
 	}
 
@@ -166,6 +230,12 @@ type VerifyResponse struct {
 }
 
 func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Error.Printf("failed to close request body: %v", err)
+		}
+	}()
+
 	bodyContent, err := io.ReadAll(r.Body)
 
 	if err != nil {

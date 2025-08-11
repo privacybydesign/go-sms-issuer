@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY}
     container_name: go-sms-issuer
     ports:
       - "8080:8080"

@@ -4,12 +4,15 @@ import { useAppContext } from '../AppContext';
 import { PhoneInput } from 'react-international-phone';
 import { useState } from 'react';
 import parsePhoneNumberFromString from 'libphonenumber-js';
+import Turnstile from 'react-turnstile';
 
 export default function ValidatePage() {
+  const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
   const navigate = useNavigate();
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
   const { t, i18n } = useTranslation();
   const { phoneNumber } = useAppContext();
+  const [captcha, setCaptcha] = useState<string>('');
 
   const enroll = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -30,6 +33,7 @@ export default function ValidatePage() {
         body: JSON.stringify({
           phone: parsedPhoneNumber?.number,
           language: i18n.language,
+          captcha: captcha
         })
       }
     );
@@ -80,6 +84,8 @@ export default function ValidatePage() {
               value={phoneNumber}
               disabled={true}
             />
+            <p>{t('validate_bot_control')}</p>
+            <Turnstile sitekey={siteKey} onSuccess={(token) => setCaptcha(token || '')} />
           </div>
         </main>
         <footer>
@@ -87,7 +93,7 @@ export default function ValidatePage() {
             <Link to={`/${i18n.language}`} id="back-button">
               {t('back')}
             </Link>
-            <button id="submit-button" >{t('confirm')}</button>
+            <button id="submit-button" disabled={!captcha}>{t('confirm')}</button>
           </div>
         </footer>
       </form>

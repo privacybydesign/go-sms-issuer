@@ -8,6 +8,7 @@ import (
 	log "go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
 	redis "go-sms-issuer/redis"
+	turnstile "go-sms-issuer/turnstile"
 	"os"
 	"time"
 )
@@ -21,12 +22,14 @@ type Config struct {
 	FullCredential    string `json:"full_credential"`
 	Attribute         string `json:"attribute"`
 
-	SmsTemplates        map[string]string         `json:"sms_templates"`
-	SmsBackend          string                    `json:"sms_backend"`
-	CmSmsSenderConfig   CmSmsSenderConfig         `json:"cm_sms_sender_config,omitempty"`
-	StorageType         string                    `json:"storage_type"`
-	RedisConfig         redis.RedisConfig         `json:"redis_config,omitempty"`
-	RedisSentinelConfig redis.RedisSentinelConfig `json:"redis_sentinel_config,omitempty"`
+	SmsTemplates           map[string]string                `json:"sms_templates"`
+	SmsBackend             string                           `json:"sms_backend"`
+	CmSmsSenderConfig      CmSmsSenderConfig                `json:"cm_sms_sender_config,omitempty"`
+	StorageType            string                           `json:"storage_type"`
+	RedisConfig            redis.RedisConfig                `json:"redis_config,omitempty"`
+	RedisSentinelConfig    redis.RedisSentinelConfig        `json:"redis_sentinel_config,omitempty"`
+	TurnStileBackend       string                           `json:"turnstile_backend,omitempty"`
+	TurnStileConfiguration turnstile.TurnStileConfiguration `json:"turnstile_configuration,omitempty"`
 }
 
 func main() {
@@ -61,6 +64,11 @@ func main() {
 		log.Error.Fatalf("failed to instantiate sms backend: %v", err)
 	}
 
+	turnstileVerifier, err := createTurnstileValidator(&config)
+	if err != nil {
+		log.Error.Fatalf("failed to instantiate turnstile verifier: %v", err)
+	}
+
 	rateLimiter, err := createRateLimiter(&config)
 	if err != nil {
 		log.Error.Fatalf("failed to instantiate rate limiter: %v", err)
@@ -72,13 +80,14 @@ func main() {
 	}
 
 	serverState := ServerState{
-		irmaServerURL:  config.IrmaServerUrl,
-		tokenStorage:   tokenStorage,
-		smsSender:      smsSender,
-		jwtCreator:     jwtCreator,
-		tokenGenerator: NewRandomTokenGenerator(),
-		smsTemplates:   config.SmsTemplates,
-		rateLimiter:    rateLimiter,
+		irmaServerURL:     config.IrmaServerUrl,
+		tokenStorage:      tokenStorage,
+		smsSender:         smsSender,
+		jwtCreator:        jwtCreator,
+		tokenGenerator:    NewRandomTokenGenerator(),
+		smsTemplates:      config.SmsTemplates,
+		rateLimiter:       rateLimiter,
+		turnstileVerifier: turnstileVerifier,
 	}
 
 	server, err := NewServer(&serverState, config.ServerConfig)
@@ -94,20 +103,23 @@ func main() {
 
 func createTokenStorage(config *Config) (TokenStorage, error) {
 	if config.StorageType == "redis" {
+		log.Info.Printf("Using redis token storage")
 		client, err := redis.NewRedisClient(&config.RedisConfig)
 		if err != nil {
 			return nil, err
 		}
-		return NewRedisTokenStorage(client), nil
+		return NewRedisTokenStorage(client, config.RedisConfig.Namespace), nil
 	}
 	if config.StorageType == "redis_sentinel" {
+		log.Info.Printf("Using redis sentinal storage")
 		client, err := redis.NewRedisSentinelClient(&config.RedisSentinelConfig)
 		if err != nil {
 			return nil, err
 		}
-		return NewRedisTokenStorage(client), nil
+		return NewRedisTokenStorage(client, config.RedisSentinelConfig.Namespace), nil
 	}
 	if config.StorageType == "memory" {
+		log.Info.Printf("Using in memory storage")
 		return NewInMemoryTokenStorage(), nil
 	}
 	return nil, fmt.Errorf("%v is not a valid storage type", config.StorageType)
@@ -129,8 +141,8 @@ func createRateLimiter(config *Config) (*rate.TotalRateLimiter, error) {
 			return nil, err
 		}
 		return rate.NewTotalRateLimiter(
-			rate.NewRedisRateLimiter(client, ipRateLimitingPolicy),
-			rate.NewRedisRateLimiter(client, phoneRateLimitingPolicy),
+			rate.NewRedisRateLimiter(client, config.RedisConfig.Namespace, ipRateLimitingPolicy),
+			rate.NewRedisRateLimiter(client, config.RedisConfig.Namespace, phoneRateLimitingPolicy),
 		), nil
 	}
 	if config.StorageType == "redis_sentinel" {
@@ -139,8 +151,8 @@ func createRateLimiter(config *Config) (*rate.TotalRateLimiter, error) {
 			return nil, err
 		}
 		return rate.NewTotalRateLimiter(
-			rate.NewRedisRateLimiter(client, ipRateLimitingPolicy),
-			rate.NewRedisRateLimiter(client, phoneRateLimitingPolicy),
+			rate.NewRedisRateLimiter(client, config.RedisSentinelConfig.Namespace, ipRateLimitingPolicy),
+			rate.NewRedisRateLimiter(client, config.RedisSentinelConfig.Namespace, phoneRateLimitingPolicy),
 		), nil
 	}
 	if config.StorageType == "memory" {
@@ -160,6 +172,22 @@ func createSmsBackend(config *Config) (SmsSender, error) {
 		return NewCmSmsSender(config.CmSmsSenderConfig)
 	}
 	return nil, fmt.Errorf("invalid sms backend: %v", config.SmsBackend)
+}
+
+func createTurnstileValidator(config *Config) (turnstile.TurnStileVerifier, error) {
+	if config.TurnStileBackend == "dummy" {
+		return &turnstile.MockTurnStileValidator{}, nil
+	}
+	if config.TurnStileBackend == "turnstile" {
+		if config.TurnStileConfiguration.SecretKey == "" || config.TurnStileConfiguration.SiteKey == "" {
+			return nil, errors.New("turnstile secret key and site key must be set for turnstile backend")
+		}
+		if config.TurnStileConfiguration.ApiUrl == "" {
+			config.TurnStileConfiguration.ApiUrl = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+		}
+		return turnstile.NewTurnStileValidator(config.TurnStileConfiguration), nil
+	}
+	return nil, fmt.Errorf("invalid turnstile backend")
 }
 
 func readConfigFile(path string) (Config, error) {

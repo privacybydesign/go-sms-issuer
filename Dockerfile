@@ -1,6 +1,12 @@
 FROM node:23 AS frontend-build
 WORKDIR /app/frontend
 COPY frontend .
+
+# Accept build-time argument for the env var
+ARG TURNSTILE_SITE_KEY
+
+ENV VITE_TURNSTILE_SITE_KEY=$TURNSTILE_SITE_KEY
+
 RUN npm install
 RUN npm run build
 

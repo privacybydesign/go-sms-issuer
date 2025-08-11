@@ -3,7 +3,7 @@ package main
 import "testing"
 
 func TestCreatingJwt(t *testing.T) {
-	path := "../local-secrets/sms-issuer/private.pem"
+	path := "../test-secrets/priv.pem"
 	issuerId := "sms_issuer"
 	credential := "irma-demo.sidn-pbdf.mobilenumber"
 	attribute := "mobilenumber"

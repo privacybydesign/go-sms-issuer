@@ -6,6 +6,7 @@ toolchain go1.24.0
 
 require (
 	github.com/golang-jwt/jwt/v4 v4.5.2
+	github.com/gorilla/mux v1.8.1
 	github.com/privacybydesign/irmago v0.18.2-0.20250612130458-58a0990ec82e
 	github.com/redis/go-redis/v9 v9.7.3
 	golang.org/x/exp v0.0.0-20241217172543-b2144cdd0a67
