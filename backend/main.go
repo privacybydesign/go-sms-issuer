@@ -176,7 +176,7 @@ func createSmsBackend(config *Config) (SmsSender, error) {
 
 func createTurnstileValidator(config *Config) (turnstile.TurnStileVerifier, error) {
 	if config.TurnStileBackend == "dummy" {
-		return &turnstile.MockTurnStileValidator{}, nil
+		return &turnstile.MockTurnStileValidator{Success: true}, nil
 	}
 	if config.TurnStileBackend == "turnstile" {
 		if config.TurnStileConfiguration.SecretKey == "" || config.TurnStileConfiguration.SiteKey == "" {
