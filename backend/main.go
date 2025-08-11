@@ -176,9 +176,11 @@ func createSmsBackend(config *Config) (SmsSender, error) {
 
 func createTurnstileValidator(config *Config) (turnstile.TurnStileVerifier, error) {
 	if config.TurnStileBackend == "dummy" {
+		log.Info.Println("using dummy turnstile validator")
 		return &turnstile.MockTurnStileValidator{Success: true}, nil
 	}
 	if config.TurnStileBackend == "turnstile" {
+		log.Info.Println("using cloudflare turnstile validator")
 		if config.TurnStileConfiguration.SecretKey == "" || config.TurnStileConfiguration.SiteKey == "" {
 			return nil, errors.New("turnstile secret key and site key must be set for turnstile backend")
 		}
