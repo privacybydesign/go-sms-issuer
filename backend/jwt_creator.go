@@ -51,10 +51,9 @@ func (jc *DefaultJwtCreator) CreateJwt(phone string) (string, error) {
 			Attributes: map[string]string{
 				jc.attribute: phone,
 			},
+			SdJwtBatchSize: irma.DefaultSdJwtIssueAmount,
 		},
 	})
-
-	issuanceRequest.RequestSdJwts = true
 
 	return irma.SignSessionRequest(
 		issuanceRequest,
