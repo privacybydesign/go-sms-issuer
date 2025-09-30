@@ -210,6 +210,11 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+
+	err = r.Body.Close()
+	if err != nil {
+		log.Error.Printf("error while closing body: %v", err)
+	}
 }
 
 // -----------------------------------------------------------------------------------
@@ -286,6 +291,11 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	err = state.tokenStorage.RemoveToken(body.PhoneNumber)
 	if err != nil {
 		log.Error.Printf("error while removing token: %v", err)
+	}
+
+	err = r.Body.Close()
+	if err != nil {
+		log.Error.Printf("error while closing body: %v", err)
 	}
 }
 

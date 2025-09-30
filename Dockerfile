@@ -18,7 +18,7 @@ COPY backend .
 RUN go mod download
 
 # compile with static linking
-RUN CGO_ENABLED=0 go build -o server 
+RUN CGO_ENABLED=0 go build -o ./server
 
 # -----------------------------------------------------
 

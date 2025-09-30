@@ -1,6 +1,6 @@
 # React frontend
 
-This directory contains a React + TypeScript implementation of the iDIN frontend using Vite.
+This directory contains a React + TypeScript implementation of the SMS issuer frontend using Vite.
 
 ## Development
 

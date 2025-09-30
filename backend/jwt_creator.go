@@ -51,6 +51,7 @@ func (jc *DefaultJwtCreator) CreateJwt(phone string) (string, error) {
 			Attributes: map[string]string{
 				jc.attribute: phone,
 			},
+			SdJwtBatchSize: 200,
 		},
 	})
 
