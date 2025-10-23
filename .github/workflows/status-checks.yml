@@ -56,14 +56,34 @@ jobs:
         - name: Checkout
           uses: actions/checkout@v4
 
+        - name: Docker meta
+          id: meta
+          uses: docker/metadata-action@v5
+          with:
+            images: ghcr.io/${{ github.repository }}
+            tags: |
+              type=semver,pattern={{major}}.{{minor}}.{{patch}}
+              type=raw,value=edge
+
+        - name: Login to GitHub Container Registry
+          uses: docker/login-action@v3
+          with:
+            registry: ghcr.io
+            username: ${{ github.actor }}
+            password: ${{ secrets.GITHUB_TOKEN }}
+
+        - name: Build Docker image for testing
+          run: docker build -t go-sms-issuer-tests --file Dockerfile.test .
+
         - name: Create coverage directory
           run: mkdir -p coverage
 
         - name: Run tests (emit coverage.out)
+          # Mount ./coverage from the runner into /coverage in the container
           run: |
             docker run --rm \
               -v "${{ github.workspace }}/coverage:/coverage" \
-              passport-issuer-tests
+              go-sms-issuer-tests
 
         - name: Upload coverage to Codecov
           uses: codecov/codecov-action@v4
@@ -72,28 +92,9 @@ jobs:
             flags: backend
             fail_ci_if_error: true
           env:
+            # Required for private repos. Not needed if your repo is public and tokenless upload is enabled.
             CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
-      
-    sonarqube-analysis:
-      runs-on: ubuntu-latest
-      steps:
-        - name: Checkout
-          uses: actions/checkout@v4
-
-        - name: Setup SonarQube
-          uses: sonarsource/sonarqube-scan-action@v2
-          with:
-            args: >
-              -Dsonar.projectKey=my-project
-              -Dsonar.organization=my-org
-              -Dsonar.sources=.
-              -Dsonar.tests=backend
-              -Dsonar.go.coverage.reportPaths=coverage/coverage.out
-          env:
-            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-            SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-        
+       
 
     build-docker-image:
       runs-on: ubuntu-latest
