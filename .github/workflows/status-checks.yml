@@ -73,7 +73,7 @@ jobs:
             password: ${{ secrets.GITHUB_TOKEN }}
 
         - name: Build Docker image for testing
-          run: docker build -t go-sms-issuer-tests --file Dockerfile.test .
+          run: docker build -t sms-issuer-tests --file Dockerfile.test .
 
         - name: Create coverage directory
           run: mkdir -p coverage
@@ -83,7 +83,7 @@ jobs:
           run: |
             docker run --rm \
               -v "${{ github.workspace }}/coverage:/coverage" \
-              go-sms-issuer-tests
+              sms-issuer-tests
 
         - name: Upload coverage to Codecov
           uses: codecov/codecov-action@v4
