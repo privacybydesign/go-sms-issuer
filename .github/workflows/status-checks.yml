@@ -75,9 +75,26 @@ jobs:
         - name: Build Docker image for testing
           run: docker build -t sms-issuer-tests --file Dockerfile.test .
 
-        - name: Run tests
-          run: docker run sms-issuer-tests
-        
+        - name: Create coverage directory
+          run: mkdir -p coverage
+
+        - name: Run tests (emit coverage.out)
+          # Mount ./coverage from the runner into /coverage in the container
+          run: |
+            docker run --rm \
+              -v "${{ github.workspace }}/coverage:/coverage" \
+              sms-issuer-tests
+
+        - name: Upload coverage to Codecov
+          uses: codecov/codecov-action@v4
+          with:
+            files: coverage/coverage.out
+            flags: backend
+            fail_ci_if_error: true
+          env:
+            # Required for private repos. Not needed if your repo is public and tokenless upload is enabled.
+            CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+       
 
     build-docker-image:
       runs-on: ubuntu-latest

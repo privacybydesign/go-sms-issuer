@@ -1,3 +1,12 @@
+[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=privacybydesign_go-sm-issuer&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=privacybydesign_go-sms-issuer)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=privacybydesign_go-sms-issuer&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=privacybydesign_go-sms-issuer)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=privacybydesign_go-sms-issuer&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=privacybydesign_go-sms-issuer)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=privacybydesign_go-sms-issuer&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=privacybydesign_go-sms-issuer)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=privacybydesign_go-sms-issuer&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=privacybydesign_go-sms-issuer)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=privacybydesign_go-sms-issuer&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=privacybydesign_go-sms-issuer
+[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=privacybydesign_go-sms-issuer&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=privacybydesign_go-sms-issuer)
+[![codecov](https://codecov.io/gh/privacybydesign/go-sms-issuer/graph/badge.svg?token=5PQDPHI36L)](https://codecov.io/gh/privacybydesign/go-sms-issuer)
+
 ## Generate a JWT keypair
 ```bash
 mkdir -p local-secrets
