@@ -59,9 +59,9 @@ type Server struct {
 func (s *Server) ListenAndServe() error {
 	if s.config.UseTls {
 		return s.server.ListenAndServeTLS(s.config.TlsCertPath, s.config.TlsPrivKeyPath)
-	} else {
-		return s.server.ListenAndServe()
 	}
+
+	return s.server.ListenAndServe()
 }
 
 func (s *Server) Stop() error {
@@ -313,10 +313,9 @@ func createSmsMessage(templates map[string]string, phone, token, language string
 	if fmtString, ok := templates[language]; ok {
 		urlSuffix := fmt.Sprintf("%v:%v", phone, token)
 		return fmt.Sprintf(fmtString, token, urlSuffix), nil
-	} else {
-		err := fmt.Errorf("no template for language '%v'", language)
-		return "", err
 	}
+
+	return "", fmt.Errorf("no template for language '%v'", language)
 }
 
 func respondWithErr(w http.ResponseWriter, code int, responseBody string, logMsg string, e error) {
