@@ -201,7 +201,7 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Info.Printf("Sending sms to %v: %v", body.PhoneNumber, message)
+	log.Info.Printf("sending sms")
 	err = state.smsSender.SendSms(body.PhoneNumber, message)
 
 	if err != nil {
