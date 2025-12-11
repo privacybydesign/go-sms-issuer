@@ -138,7 +138,9 @@ main {
 	flex: 1;
 }
 
-label {
+/* Scope label styles to not affect ALTCHA widget */
+.sms-form > label,
+form > label {
 	margin-top: 2rem;
 	margin-bottom: 0.5rem;
 	display: block;

@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	altcha "go-sms-issuer/altcha"
 	log "go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
-	turnstile "go-sms-issuer/turnstile"
 	"io"
 	"math"
 	"net"
@@ -43,7 +43,7 @@ type ServerState struct {
 	tokenGenerator    TokenGenerator
 	smsTemplates      map[string]string
 	rateLimiter       *rate.TotalRateLimiter
-	turnstileVerifier turnstile.TurnStileVerifier
+	challengeVerifier altcha.ChallengeVerifier
 }
 
 type SpaHandler struct {
@@ -107,6 +107,11 @@ func NewServer(state *ServerState, config ServerConfig) (*Server, error) {
 		}
 	})
 
+	// api to get ALTCHA challenge
+	router.HandleFunc("/api/challenge", func(w http.ResponseWriter, r *http.Request) {
+		handleChallenge(state, w, r)
+	})
+
 	// api to handle validating the phone number
 	router.HandleFunc("/send", func(w http.ResponseWriter, r *http.Request) {
 		handleSendSms(state, w, r)
@@ -130,6 +135,22 @@ func NewServer(state *ServerState, config ServerConfig) (*Server, error) {
 		server: srv,
 		config: config,
 	}, nil
+}
+
+// -----------------------------------------------------------------------------------
+
+func handleChallenge(state *ServerState, w http.ResponseWriter, r *http.Request) {
+	challenge, err := state.challengeVerifier.CreateChallenge()
+	if err != nil {
+		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to create challenge", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(challenge); err != nil {
+		log.Error.Printf("failed to encode challenge: %v", err)
+	}
 }
 
 // -----------------------------------------------------------------------------------
@@ -162,13 +183,13 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return an erro when the captcha is nil or empty
+	// Return an error when the captcha is nil or empty
 	if body.Captcha == "" {
 		respondWithErr(w, http.StatusBadRequest, ErrorInvalidCaptcha, "captcha is required", fmt.Errorf("captcha is empty"))
 		return
 	}
 
-	if !state.turnstileVerifier.Verify(body.Captcha, getIpAddressForRequest(r)) {
+	if !state.challengeVerifier.Verify(body.Captcha) {
 		respondWithErr(w, http.StatusBadRequest, ErrorInvalidCaptcha, "invalid captcha", fmt.Errorf("captcha validation failed"))
 		return
 	}

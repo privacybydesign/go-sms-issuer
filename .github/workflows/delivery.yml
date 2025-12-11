@@ -57,8 +57,6 @@ jobs:
           tags: local/go-sms-issuer:scan
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            TURNSTILE_SITE_KEY=${{ secrets.TURNSTILE_SITE_KEY }}
 
       - name: Scan Image
         uses: anchore/scan-action@v3
@@ -83,5 +81,3 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            TURNSTILE_SITE_KEY=${{ secrets.TURNSTILE_SITE_KEY }}

@@ -14,6 +14,7 @@ require (
 
 require (
 	github.com/alexandrevicenzi/go-sse v1.6.0 // indirect
+	github.com/altcha-org/altcha-lib-go v0.2.2 // indirect
 	github.com/bwesterb/byteswriter v1.0.0 // indirect
 	github.com/bwesterb/go-atum v1.1.5 // indirect
 	github.com/bwesterb/go-exptable v1.0.0 // indirect

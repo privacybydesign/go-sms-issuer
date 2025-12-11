@@ -39,7 +39,6 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Navigate to="/nl" replace />} />
-
           <Route path=":lang/*" element={<LanguageRouter />} />
         </Routes>
       </BrowserRouter>

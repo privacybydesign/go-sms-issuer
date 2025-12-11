@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	altcha "go-sms-issuer/altcha"
 	log "go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
-	turnstile "go-sms-issuer/turnstile"
 )
 
 // for testing purposes it's useful to have a static token
@@ -269,8 +269,8 @@ func (m *mockSmsSender) SendSms(phone, mess string) error {
 	return nil
 }
 
-func NewMockTurnStileVerifier(turnstileSuccess bool) turnstile.TurnStileVerifier {
-	return &turnstile.MockTurnStileValidator{Success: turnstileSuccess}
+func NewMockChallengeVerifier(challengeSuccess bool) altcha.ChallengeVerifier {
+	return &altcha.MockValidator{Success: challengeSuccess}
 }
 
 type mockJwtCreator struct{}
@@ -279,10 +279,10 @@ func (m *mockJwtCreator) CreateJwt(phone string) (string, error) {
 	return "JWT", nil
 }
 
-func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileSuccess bool) *Server {
+func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, challengeSuccess bool) *Server {
 	smsSender := newMockSmsSender(smsChan)
 
-	turnstileVerifier := NewMockTurnStileVerifier(turnstileSuccess)
+	challengeVerifier := NewMockChallengeVerifier(challengeSuccess)
 
 	ipRateLimitingPolicy := rate.RateLimitingPolicy{
 		Window: time.Minute * 30,
@@ -307,7 +307,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileS
 			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), ipRateLimitingPolicy),
 			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), phoneLimitPolicy),
 		),
-		turnstileVerifier: turnstileVerifier,
+		challengeVerifier: challengeVerifier,
 	}
 
 	config := ServerConfig{
