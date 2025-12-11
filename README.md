@@ -44,12 +44,8 @@ go run . --config ../local-secrets/config.json
 ```
 
 ## Configuration
-`.env` is the environment file for the frontend.
-```env
-TURNSTILE_SITE_KEY=
-```
 
-`local-secrets/irma-server/config.json` is the configuration file for the SMS issuer.
+`local-secrets/irma-server/config.json` is the configuration file for the IRMA server.
 ```json
 {
     "requestors": {
@@ -101,11 +97,9 @@ TURNSTILE_SITE_KEY=
         "master_name": "mymaster",
         "namespace": "sms-issuer"
     },
-    "turnstile_backend": "turnstile",
-    "turnstile_configuration": {
-        "secret_key": "",
-        "site_key": "",
-        "api_url": "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+    "altcha_backend": "altcha",
+    "altcha_configuration": {
+        "hmac_key": "your-secret-hmac-key-here"
     }
 }
 ```

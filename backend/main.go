@@ -5,10 +5,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	altcha "go-sms-issuer/altcha"
 	log "go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
 	redis "go-sms-issuer/redis"
-	turnstile "go-sms-issuer/turnstile"
 	"os"
 	"time"
 )
@@ -22,14 +22,14 @@ type Config struct {
 	FullCredential    string `json:"full_credential"`
 	Attribute         string `json:"attribute"`
 
-	SmsTemplates           map[string]string                `json:"sms_templates"`
-	SmsBackend             string                           `json:"sms_backend"`
-	CmSmsSenderConfig      CmSmsSenderConfig                `json:"cm_sms_sender_config,omitempty"`
-	StorageType            string                           `json:"storage_type"`
-	RedisConfig            redis.RedisConfig                `json:"redis_config,omitempty"`
-	RedisSentinelConfig    redis.RedisSentinelConfig        `json:"redis_sentinel_config,omitempty"`
-	TurnStileBackend       string                           `json:"turnstile_backend,omitempty"`
-	TurnStileConfiguration turnstile.TurnStileConfiguration `json:"turnstile_configuration,omitempty"`
+	SmsTemplates        map[string]string         `json:"sms_templates"`
+	SmsBackend          string                    `json:"sms_backend"`
+	CmSmsSenderConfig   CmSmsSenderConfig         `json:"cm_sms_sender_config,omitempty"`
+	StorageType         string                    `json:"storage_type"`
+	RedisConfig         redis.RedisConfig         `json:"redis_config,omitempty"`
+	RedisSentinelConfig redis.RedisSentinelConfig `json:"redis_sentinel_config,omitempty"`
+	AltchaBackend       string                    `json:"altcha_backend,omitempty"`
+	AltchaConfiguration altcha.Configuration      `json:"altcha_configuration,omitempty"`
 }
 
 func main() {
@@ -64,9 +64,9 @@ func main() {
 		log.Error.Fatalf("failed to instantiate sms backend: %v", err)
 	}
 
-	turnstileVerifier, err := createTurnstileValidator(&config)
+	challengeVerifier, err := createChallengeValidator(&config)
 	if err != nil {
-		log.Error.Fatalf("failed to instantiate turnstile verifier: %v", err)
+		log.Error.Fatalf("failed to instantiate challenge verifier: %v", err)
 	}
 
 	rateLimiter, err := createRateLimiter(&config)
@@ -87,7 +87,7 @@ func main() {
 		tokenGenerator:    NewRandomTokenGenerator(),
 		smsTemplates:      config.SmsTemplates,
 		rateLimiter:       rateLimiter,
-		turnstileVerifier: turnstileVerifier,
+		challengeVerifier: challengeVerifier,
 	}
 
 	server, err := NewServer(&serverState, config.ServerConfig)
@@ -174,22 +174,19 @@ func createSmsBackend(config *Config) (SmsSender, error) {
 	return nil, fmt.Errorf("invalid sms backend: %v", config.SmsBackend)
 }
 
-func createTurnstileValidator(config *Config) (turnstile.TurnStileVerifier, error) {
-	if config.TurnStileBackend == "dummy" {
-		log.Info.Println("using dummy turnstile validator")
-		return &turnstile.MockTurnStileValidator{Success: true}, nil
+func createChallengeValidator(config *Config) (altcha.ChallengeVerifier, error) {
+	if config.AltchaBackend == "dummy" {
+		log.Info.Println("using dummy altcha validator")
+		return &altcha.MockValidator{Success: true}, nil
 	}
-	if config.TurnStileBackend == "turnstile" {
-		log.Info.Println("using cloudflare turnstile validator")
-		if config.TurnStileConfiguration.SecretKey == "" || config.TurnStileConfiguration.SiteKey == "" {
-			return nil, errors.New("turnstile secret key and site key must be set for turnstile backend")
+	if config.AltchaBackend == "altcha" {
+		log.Info.Println("using altcha validator")
+		if config.AltchaConfiguration.HMACKey == "" {
+			return nil, errors.New("altcha hmac key must be set for altcha backend")
 		}
-		if config.TurnStileConfiguration.ApiUrl == "" {
-			config.TurnStileConfiguration.ApiUrl = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
-		}
-		return turnstile.NewTurnStileValidator(config.TurnStileConfiguration), nil
+		return altcha.NewValidator(config.AltchaConfiguration), nil
 	}
-	return nil, fmt.Errorf("invalid turnstile backend")
+	return nil, fmt.Errorf("invalid altcha backend")
 }
 
 func readConfigFile(path string) (Config, error) {

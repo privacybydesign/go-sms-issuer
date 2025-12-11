@@ -76,7 +76,17 @@ export default function EnrollPage() {
         });
     });
     return;
-  }} catch (error) {
+  } else {
+    // Handle error responses
+    let errorCode = await response.text();
+    errorCode = errorCode.trim().replaceAll("-", "_").replaceAll(":", "_").toLowerCase();
+    if (errorCode) {
+      setErrorMessage(t(errorCode));
+    } else {
+      navigate(`/${i18n.language}/error`);
+    }
+  }
+  } catch (error) {
     navigate(`/${i18n.language}/error`);
   }
 };
