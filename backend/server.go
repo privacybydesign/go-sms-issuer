@@ -36,14 +36,15 @@ type ServerConfig struct {
 }
 
 type ServerState struct {
-	irmaServerURL     string
-	tokenStorage      TokenStorage
-	smsSender         SmsSender
-	jwtCreator        JwtCreator
-	tokenGenerator    TokenGenerator
-	smsTemplates      map[string]string
-	rateLimiter       *rate.TotalRateLimiter
-	turnstileVerifier turnstile.TurnStileVerifier
+	irmaServerURL         string
+	tokenStorage          TokenStorage
+	smsSender             SmsSender
+	jwtCreator            JwtCreator
+	tokenGenerator        TokenGenerator
+	smsTemplates          map[string]string
+	sendSmsRateLimiter    *rate.TotalRateLimiter
+	verifyCodeRateLimiter *rate.TotalRateLimiter
+	turnstileVerifier     turnstile.TurnStileVerifier
 }
 
 type SpaHandler struct {
@@ -171,7 +172,7 @@ func handleEmbeddedIssuanceSendSms(state *ServerState, w http.ResponseWriter, r 
 
 	ip := getIpAddressForRequest(r)
 
-	allow, timeout := state.rateLimiter.Allow(ip, body.PhoneNumber)
+	allow, timeout := state.sendSmsRateLimiter.Allow(ip, body.PhoneNumber)
 
 	if !allow {
 		// rounding so it doesn't show up weird on the client side
@@ -256,7 +257,7 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 
 	ip := getIpAddressForRequest(r)
 
-	allow, timeout := state.rateLimiter.Allow(ip, body.PhoneNumber)
+	allow, timeout := state.sendSmsRateLimiter.Allow(ip, body.PhoneNumber)
 
 	if !allow {
 		// rounding so it doesn't show up weird on the client side
@@ -328,6 +329,18 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	err = json.Unmarshal(bodyContent, &body)
 	if err != nil {
 		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to parse body as json", err)
+		return
+	}
+
+	ip := getIpAddressForRequest(r)
+
+	allow, timeout := state.verifyCodeRateLimiter.Allow(ip, body.PhoneNumber)
+
+	if !allow {
+		// rounding so it doesn't show up weird on the client side
+		roundedSecs := int(math.Round(timeout.Seconds()))
+		w.Header().Set("Retry-After", fmt.Sprintf("%d", roundedSecs))
+		respondWithErr(w, http.StatusTooManyRequests, ErrorRateLimit, "too many requests", err)
 		return
 	}
 

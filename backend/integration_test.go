@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
 	log "go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
 	turnstile "go-sms-issuer/turnstile"
+
+	"github.com/stretchr/testify/require"
 )
 
 // for testing purposes it's useful to have a static token
@@ -26,12 +27,8 @@ func TestEmptyCaptcha(t *testing.T) {
 
 	// first request should be fine
 	resp, err := makeSendSmsRequest(phone, "en", "")
-	if err != nil {
-		t.Fatalf("failed to send sms request: %v", err)
-	}
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("expected BadRequest for missing captcha, got: %v", resp.StatusCode)
-	}
+	require.NoError(t, err)
+	require.Equal(t, resp.StatusCode, http.StatusBadRequest)
 }
 
 func TestWithCaptchaButFailed(t *testing.T) {
@@ -42,12 +39,29 @@ func TestWithCaptchaButFailed(t *testing.T) {
 
 	// first request should be fine
 	resp, err := makeSendSmsRequest(phone, "en", testCaptcha)
-	if err != nil {
-		t.Fatalf("failed to send sms request: %v", err)
+	require.NoError(t, err)
+	require.Equal(t, resp.StatusCode, http.StatusBadRequest)
+}
+
+func TestRateLimitingVerifyCode(t *testing.T) {
+	server := createAndStartTestServer(t, nil, true)
+	defer stopServer(server)
+
+	phone := "+31612345678"
+
+	_, err := makeSendSmsRequest(phone, "en", testCaptcha)
+	require.NoError(t, err)
+
+	// first 25 should fail but should not be limited
+	for i := 1; i <= 25; i++ {
+		resp, err := makeVerifyRequest(phone, "en")
+		require.NoError(t, err)
+		require.Equal(t, resp.StatusCode, http.StatusOK, "failed at request %v", i)
 	}
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("expected BadRequest for missing captcha, got: %v", resp.StatusCode)
-	}
+
+	resp, err := makeSendSmsRequest(phone, "en", testCaptcha)
+	require.NoError(t, err)
+	require.Equal(t, resp.StatusCode, http.StatusTooManyRequests)
 }
 
 func TestRateLimitingSingleClient(t *testing.T) {
@@ -57,23 +71,14 @@ func TestRateLimitingSingleClient(t *testing.T) {
 	phone := "+31612345678"
 
 	for i := 1; i <= 5; i++ {
-		// first request should be fine
 		resp, err := makeSendSmsRequest(phone, "en", testCaptcha)
-		if err != nil {
-			t.Fatalf("failed to send sms request: %v", err)
-		}
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("request %v failed, where it should succeed: %v", i, resp.StatusCode)
-		}
+		require.NoError(t, err)
+		require.Equal(t, resp.StatusCode, http.StatusOK, "failed at request %v", i)
 	}
 
 	resp, err := makeSendSmsRequest(phone, "en", testCaptcha)
-	if err != nil {
-		t.Fatalf("failed to send sms request: %v", err)
-	}
-	if resp.StatusCode != http.StatusTooManyRequests {
-		t.Fatalf("6th request was expected to be rate limited: %v", resp.StatusCode)
-	}
+	require.NoError(t, err)
+	require.Equal(t, resp.StatusCode, http.StatusTooManyRequests)
 }
 
 func TestUnsupportedLanguageFails(t *testing.T) {
@@ -83,17 +88,8 @@ func TestUnsupportedLanguageFails(t *testing.T) {
 	phone := "+31687654321"
 
 	resp, err := makeSendSmsRequest(phone, "fr", testCaptcha)
-	if err != nil {
-		t.Fatalf("failed to send sms request: %v", err)
-	}
-
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf(
-			"status code was expected to be %v (BadRequest), but was %v",
-			http.StatusBadRequest,
-			resp.StatusCode,
-		)
-	}
+	require.NoError(t, err)
+	require.Equal(t, resp.StatusCode, http.StatusBadRequest)
 }
 
 func TestSmsIsBeingSent(t *testing.T) {
@@ -113,12 +109,8 @@ func TestSmsIsBeingSent(t *testing.T) {
 	}
 
 	sms := <-smsReceiver
-	if sms.phone != phone {
-		t.Fatalf("not sending sms to correct phone number: %v instead of %v", sms.phone, phone)
-	}
-	if !strings.Contains(sms.message, testToken) {
-		t.Fatalf("sms message doesn't contain token: %v", sms.message)
-	}
+	require.Equal(t, sms.phone, phone)
+	require.Contains(t, sms.message, testToken)
 }
 
 func TestVerifyWrongPhoneNumberFails(t *testing.T) {
@@ -128,17 +120,8 @@ func TestVerifyWrongPhoneNumberFails(t *testing.T) {
 	phone := "+31612345678"
 
 	resp, err := makeVerifyRequest(phone, testToken)
-	if err != nil {
-		t.Fatalf("failed to send verify request: %v", err)
-	}
-
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf(
-			"status code was expected to be %v (BadRequest), but was %v",
-			http.StatusBadRequest,
-			resp.StatusCode,
-		)
-	}
+	require.NoError(t, err)
+	require.Equal(t, resp.StatusCode, http.StatusBadRequest)
 }
 
 func TestWrongTokenFails(t *testing.T) {
@@ -149,27 +132,12 @@ func TestWrongTokenFails(t *testing.T) {
 
 	resp, err := makeSendSmsRequest(phone, "en", testCaptcha)
 
-	if err != nil {
-		t.Fatalf("send sms request failed: %v", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("send-sms response status code not ok: %v", resp.StatusCode)
-	}
+	require.NoError(t, err)
+	require.Equal(t, resp.StatusCode, http.StatusOK)
 
 	resp, err = makeVerifyRequest(phone, "111111")
-
-	if err != nil {
-		t.Fatalf("verify request failed: %v", err)
-	}
-
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf(
-			"status code was expected to be %v (Unauthorized), but was %v",
-			http.StatusUnauthorized,
-			resp.StatusCode,
-		)
-	}
+	require.NoError(t, err)
+	require.Equal(t, resp.StatusCode, http.StatusUnauthorized)
 }
 
 func TestSendingSendRequest(t *testing.T) {
@@ -179,52 +147,31 @@ func TestSendingSendRequest(t *testing.T) {
 	phone := "+31612345678"
 
 	resp, err := makeSendSmsRequest(phone, "en", testCaptcha)
-
-	if err != nil {
-		t.Fatalf("send sms request failed: %v", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("send-sms response status code not ok: %v", resp.StatusCode)
-	}
+	require.NoError(t, err)
+	require.Equal(t, resp.StatusCode, http.StatusOK)
 
 	resp, err = makeVerifyRequest(phone, testToken)
 
-	if err != nil {
-		t.Fatalf("verify request failed: %v", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("verify response status code not OK: %v", resp.StatusCode)
-	}
+	require.NoError(t, err)
+	require.Equal(t, resp.StatusCode, http.StatusOK)
 
 	body, err := readCompleteBodyToString(resp)
+	require.NoError(t, err)
+
 	// check if body is json with JWT in it
-	if err != nil {
-		t.Fatalf("failed to read response body: %v", err)
-	}
 	// Deserialize json
 	var data map[string]string
 	err = json.Unmarshal([]byte(body), &data)
-	if err != nil {
-		t.Fatalf("failed to unmarshal response body: %v", err)
-	}
+	require.NoError(t, err)
 	// Check if JWT is present
 	jwt, ok := data["jwt"]
-	if !ok {
-		t.Fatalf("response body does not contain JWT: %v", body)
-	}
-	if jwt != "JWT" {
-		t.Fatalf("unexpected JWT in response body: %v", jwt)
-	}
+	require.True(t, ok, "response body does not contain JWT: %v")
+	require.Equal(t, jwt, "JWT")
+
 	// Check if irma_server_url is present
 	irmaServerURL, ok := data["irma_server_url"]
-	if !ok {
-		t.Fatalf("response body does not contain irma_server_url: %v", body)
-	}
-	if irmaServerURL != "http://localhost:8080" {
-		t.Fatalf("unexpected irma_server_url in response body: %v", irmaServerURL)
-	}
+	require.True(t, ok, "response body does not contain irma_server_url: %v", body)
+	require.Equal(t, irmaServerURL, "http://localhost:8080")
 }
 
 // ------------------------------------------------------------------------
@@ -303,7 +250,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileS
 		smsTemplates: map[string]string{
 			"en": "your token: %v",
 		},
-		rateLimiter: rate.NewTotalRateLimiter(
+		sendSmsRateLimiter: rate.NewTotalRateLimiter(
 			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), ipRateLimitingPolicy),
 			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), phoneLimitPolicy),
 		),
@@ -317,17 +264,12 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileS
 	}
 
 	server, err := NewServer(&state, config)
-
-	if err != nil {
-		t.Fatalf("failed to create server: %v", err)
-	}
+	require.NoError(t, err)
 
 	go func() {
 		err := server.ListenAndServe()
-		// if server didn't close succesfully
-		if err != http.ErrServerClosed {
-			log.Error.Fatalf("server crashed: %v", err)
-		}
+		// if server didn't close succesfully -> fail
+		require.Equal(t, err, http.ErrServerClosed)
 	}()
 
 	// Wait for server to be ready
@@ -336,16 +278,12 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileS
 		resp, err := http.Get("http://localhost:8081/")
 		if err == nil {
 			err = resp.Body.Close()
-			if err != nil {
-				t.Fatalf("error closing response body: %v", err)
-			}
+			require.NoError(t, err)
 			break
 		}
 		// Wait 50ms before retrying
 		time.Sleep(50 * time.Millisecond)
-		if i == maxAttempts-1 {
-			t.Fatalf("server did not start in time: %v", err)
-		}
+		require.NotEqual(t, i, maxAttempts-1, "server did not start in time: %v", err)
 	}
 
 	return server
