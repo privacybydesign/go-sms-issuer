@@ -56,7 +56,7 @@ func TestRateLimitingVerifyCode(t *testing.T) {
 	for i := 1; i <= 25; i++ {
 		resp, err := makeVerifyRequest(phone, "en")
 		require.NoError(t, err)
-		require.Equal(t, resp.StatusCode, http.StatusOK, "failed at request %v", i)
+		require.Equal(t, resp.StatusCode, http.StatusUnauthorized, "failed at request %v", i)
 	}
 
 	resp, err := makeSendSmsRequest(phone, "en", testCaptcha)
@@ -288,7 +288,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileS
 
 	// Wait for server to be ready
 	const maxAttempts = 50
-	for i := 0; i < maxAttempts; i++ {
+	for i := range maxAttempts {
 		resp, err := http.Get("http://localhost:8081/")
 		if err == nil {
 			err = resp.Body.Close()
