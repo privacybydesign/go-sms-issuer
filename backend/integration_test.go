@@ -231,14 +231,24 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileS
 
 	turnstileVerifier := NewMockTurnStileVerifier(turnstileSuccess)
 
-	ipRateLimitingPolicy := rate.RateLimitingPolicy{
+	sendSmsIpRateLimitingPolicy := rate.RateLimitingPolicy{
 		Window: time.Minute * 30,
 		Limit:  10,
 	}
 
-	phoneLimitPolicy := rate.RateLimitingPolicy{
+	sendSmsPhoneRateLimitPolicy := rate.RateLimitingPolicy{
 		Window: time.Minute * 30,
 		Limit:  5,
+	}
+
+	verifyCodeIpRateLimitingPolicy := rate.RateLimitingPolicy{
+		Window: time.Minute * 30,
+		Limit:  25,
+	}
+
+	verifyCodePhoneRateLimitPolicy := rate.RateLimitingPolicy{
+		Window: time.Minute * 30,
+		Limit:  25,
 	}
 
 	state := ServerState{
@@ -251,8 +261,12 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileS
 			"en": "your token: %v",
 		},
 		sendSmsRateLimiter: rate.NewTotalRateLimiter(
-			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), ipRateLimitingPolicy),
-			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), phoneLimitPolicy),
+			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), sendSmsIpRateLimitingPolicy),
+			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), sendSmsPhoneRateLimitPolicy),
+		),
+		verifyCodeRateLimiter: rate.NewTotalRateLimiter(
+			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), verifyCodeIpRateLimitingPolicy),
+			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), verifyCodePhoneRateLimitPolicy),
 		),
 		turnstileVerifier: turnstileVerifier,
 	}
