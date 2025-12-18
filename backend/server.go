@@ -169,20 +169,17 @@ func handleEmbeddedIssuanceSendSms(state *ServerState, w http.ResponseWriter, r 
 		return
 	}
 
-	// TODO: PUT THIS BACK
-	/*
-		ip := getIpAddressForRequest(r)
+	ip := getIpAddressForRequest(r)
 
-		allow, timeout := state.rateLimiter.Allow(ip, body.PhoneNumber)
+	allow, timeout := state.rateLimiter.Allow(ip, body.PhoneNumber)
 
-		if !allow {
-			// rounding so it doesn't show up weird on the client side
-			roundedSecs := int(math.Round(timeout.Seconds()))
-			w.Header().Set("Retry-After", fmt.Sprintf("%d", roundedSecs))
-			respondWithErr(w, http.StatusTooManyRequests, ErrorRateLimit, "too many requests", err)
-			return
-		}
-	*/
+	if !allow {
+		// rounding so it doesn't show up weird on the client side
+		roundedSecs := int(math.Round(timeout.Seconds()))
+		w.Header().Set("Retry-After", fmt.Sprintf("%d", roundedSecs))
+		respondWithErr(w, http.StatusTooManyRequests, ErrorRateLimit, "too many requests", err)
+		return
+	}
 
 	token := state.tokenGenerator.GenerateToken()
 
