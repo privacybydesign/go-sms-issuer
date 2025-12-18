@@ -54,12 +54,13 @@ func TestRateLimitingVerifyCode(t *testing.T) {
 
 	// first 25 should fail but should not be limited
 	for i := 1; i <= 25; i++ {
-		resp, err := makeVerifyRequest(phone, "en")
+		resp, err := makeVerifyRequest(phone, "000000")
 		require.NoError(t, err)
 		require.Equal(t, resp.StatusCode, http.StatusUnauthorized, "failed at request %v", i)
 	}
 
-	resp, err := makeSendSmsRequest(phone, "en", testCaptcha)
+	// 26th should be limited
+	resp, err := makeVerifyRequest(phone, "000000")
 	require.NoError(t, err)
 	require.Equal(t, resp.StatusCode, http.StatusTooManyRequests)
 }
