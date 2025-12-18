@@ -24,12 +24,12 @@ type Config struct {
 
 	SmsTemplates           map[string]string                `json:"sms_templates"`
 	SmsBackend             string                           `json:"sms_backend"`
-	CmSmsSenderConfig      CmSmsSenderConfig                `json:"cm_sms_sender_config,omitempty"`
+	CmSmsSenderConfig      CmSmsSenderConfig                `json:"cm_sms_sender_config"`
 	StorageType            string                           `json:"storage_type"`
-	RedisConfig            redis.RedisConfig                `json:"redis_config,omitempty"`
-	RedisSentinelConfig    redis.RedisSentinelConfig        `json:"redis_sentinel_config,omitempty"`
+	RedisConfig            redis.RedisConfig                `json:"redis_config"`
+	RedisSentinelConfig    redis.RedisSentinelConfig        `json:"redis_sentinel_config"`
 	TurnStileBackend       string                           `json:"turnstile_backend,omitempty"`
-	TurnStileConfiguration turnstile.TurnStileConfiguration `json:"turnstile_configuration,omitempty"`
+	TurnStileConfiguration turnstile.TurnStileConfiguration `json:"turnstile_configuration"`
 }
 
 func main() {
