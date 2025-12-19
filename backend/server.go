@@ -36,14 +36,15 @@ type ServerConfig struct {
 }
 
 type ServerState struct {
-	irmaServerURL     string
-	tokenStorage      TokenStorage
-	smsSender         SmsSender
-	jwtCreator        JwtCreator
-	tokenGenerator    TokenGenerator
-	smsTemplates      map[string]string
-	rateLimiter       *rate.TotalRateLimiter
-	turnstileVerifier turnstile.TurnStileVerifier
+	irmaServerURL         string
+	tokenStorage          TokenStorage
+	smsSender             SmsSender
+	jwtCreator            JwtCreator
+	tokenGenerator        TokenGenerator
+	smsTemplates          map[string]string
+	sendSmsRateLimiter    *rate.TotalRateLimiter
+	verifyCodeRateLimiter *rate.TotalRateLimiter
+	turnstileVerifier     turnstile.TurnStileVerifier
 }
 
 type SpaHandler struct {
@@ -107,6 +108,14 @@ func NewServer(state *ServerState, config ServerConfig) (*Server, error) {
 		}
 	})
 
+	// api to handle validating the phone number from within the Yivi app
+	router.HandleFunc("/api/embedded/send", func(w http.ResponseWriter, r *http.Request) {
+		handleEmbeddedIssuanceSendSms(state, w, r)
+	})
+	router.HandleFunc("/api/embedded/verify", func(w http.ResponseWriter, r *http.Request) {
+		handleVerify(state, w, r)
+	})
+
 	// api to handle validating the phone number
 	router.HandleFunc("/send", func(w http.ResponseWriter, r *http.Request) {
 		handleSendSms(state, w, r)
@@ -130,6 +139,79 @@ func NewServer(state *ServerState, config ServerConfig) (*Server, error) {
 		server: srv,
 		config: config,
 	}, nil
+}
+
+// -----------------------------------------------------------------------------------
+
+type EmbeddedIssuance_SendSmsPayload struct {
+	PhoneNumber string `json:"phone"`
+	Language    string `json:"language"`
+}
+
+func handleEmbeddedIssuanceSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Error.Printf("failed to close request body: %v", err)
+		}
+	}()
+
+	bodyContent, err := io.ReadAll(r.Body)
+
+	if err != nil {
+		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to read body of send-sms request", err)
+		return
+	}
+
+	var body EmbeddedIssuance_SendSmsPayload
+	err = json.Unmarshal(bodyContent, &body)
+
+	if err != nil {
+		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to parse json for body of send-sms request", err)
+		return
+	}
+
+	ip := getIpAddressForRequest(r)
+
+	allow, timeout := state.sendSmsRateLimiter.Allow(ip, body.PhoneNumber)
+
+	if !allow {
+		// rounding so it doesn't show up weird on the client side
+		roundedSecs := int(math.Round(timeout.Seconds()))
+		w.Header().Set("Retry-After", fmt.Sprintf("%d", roundedSecs))
+		respondWithErr(w, http.StatusTooManyRequests, ErrorRateLimit, "too many requests", err)
+		return
+	}
+
+	token := state.tokenGenerator.GenerateToken()
+
+	err = state.tokenStorage.StoreToken(body.PhoneNumber, token)
+
+	if err != nil {
+		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to store token", err)
+		return
+	}
+
+	message, err := createSmsMessage(state.smsTemplates, body.PhoneNumber, token, body.Language)
+
+	if err != nil {
+		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to create sms", err)
+		return
+	}
+
+	log.Info.Printf("sending sms")
+	err = state.smsSender.SendSms(body.PhoneNumber, message)
+
+	if err != nil {
+		respondWithErr(w, http.StatusInternalServerError, ErrorSendingSms, "failed to send sms", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+	err = r.Body.Close()
+	if err != nil {
+		log.Error.Printf("error while closing body: %v", err)
+	}
 }
 
 // -----------------------------------------------------------------------------------
@@ -175,7 +257,7 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 
 	ip := getIpAddressForRequest(r)
 
-	allow, timeout := state.rateLimiter.Allow(ip, body.PhoneNumber)
+	allow, timeout := state.sendSmsRateLimiter.Allow(ip, body.PhoneNumber)
 
 	if !allow {
 		// rounding so it doesn't show up weird on the client side
@@ -247,6 +329,18 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	err = json.Unmarshal(bodyContent, &body)
 	if err != nil {
 		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to parse body as json", err)
+		return
+	}
+
+	ip := getIpAddressForRequest(r)
+
+	allow, timeout := state.verifyCodeRateLimiter.Allow(ip, body.PhoneNumber)
+
+	if !allow {
+		// rounding so it doesn't show up weird on the client side
+		roundedSecs := int(math.Round(timeout.Seconds()))
+		w.Header().Set("Retry-After", fmt.Sprintf("%d", roundedSecs))
+		respondWithErr(w, http.StatusTooManyRequests, ErrorRateLimit, "too many requests", err)
 		return
 	}
 

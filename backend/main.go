@@ -24,12 +24,12 @@ type Config struct {
 
 	SmsTemplates           map[string]string                `json:"sms_templates"`
 	SmsBackend             string                           `json:"sms_backend"`
-	CmSmsSenderConfig      CmSmsSenderConfig                `json:"cm_sms_sender_config,omitempty"`
+	CmSmsSenderConfig      CmSmsSenderConfig                `json:"cm_sms_sender_config"`
 	StorageType            string                           `json:"storage_type"`
-	RedisConfig            redis.RedisConfig                `json:"redis_config,omitempty"`
-	RedisSentinelConfig    redis.RedisSentinelConfig        `json:"redis_sentinel_config,omitempty"`
+	RedisConfig            redis.RedisConfig                `json:"redis_config"`
+	RedisSentinelConfig    redis.RedisSentinelConfig        `json:"redis_sentinel_config"`
 	TurnStileBackend       string                           `json:"turnstile_backend,omitempty"`
-	TurnStileConfiguration turnstile.TurnStileConfiguration `json:"turnstile_configuration,omitempty"`
+	TurnStileConfiguration turnstile.TurnStileConfiguration `json:"turnstile_configuration"`
 }
 
 func main() {
@@ -69,9 +69,14 @@ func main() {
 		log.Error.Fatalf("failed to instantiate turnstile verifier: %v", err)
 	}
 
-	rateLimiter, err := createRateLimiter(&config)
+	sendSmsRateLimiter, err := createSendSmsRateLimiter(&config)
 	if err != nil {
-		log.Error.Fatalf("failed to instantiate rate limiter: %v", err)
+		log.Error.Fatalf("failed to instantiate rate limiter for sending sms: %v", err)
+	}
+
+	verifyCodeRateLimiter, err := createVerifyCodeRateLimiter(&config)
+	if err != nil {
+		log.Error.Fatalf("failed to instantiate rate limiter for verifying codes: %v", err)
 	}
 
 	tokenStorage, err := createTokenStorage(&config)
@@ -80,14 +85,15 @@ func main() {
 	}
 
 	serverState := ServerState{
-		irmaServerURL:     config.IrmaServerUrl,
-		tokenStorage:      tokenStorage,
-		smsSender:         smsSender,
-		jwtCreator:        jwtCreator,
-		tokenGenerator:    NewRandomTokenGenerator(),
-		smsTemplates:      config.SmsTemplates,
-		rateLimiter:       rateLimiter,
-		turnstileVerifier: turnstileVerifier,
+		irmaServerURL:         config.IrmaServerUrl,
+		tokenStorage:          tokenStorage,
+		smsSender:             smsSender,
+		jwtCreator:            jwtCreator,
+		tokenGenerator:        NewRandomTokenGenerator(),
+		smsTemplates:          config.SmsTemplates,
+		sendSmsRateLimiter:    sendSmsRateLimiter,
+		verifyCodeRateLimiter: verifyCodeRateLimiter,
+		turnstileVerifier:     turnstileVerifier,
 	}
 
 	server, err := NewServer(&serverState, config.ServerConfig)
@@ -125,7 +131,7 @@ func createTokenStorage(config *Config) (TokenStorage, error) {
 	return nil, fmt.Errorf("%v is not a valid storage type", config.StorageType)
 }
 
-func createRateLimiter(config *Config) (*rate.TotalRateLimiter, error) {
+func createSendSmsRateLimiter(config *Config) (*rate.TotalRateLimiter, error) {
 	ipRateLimitingPolicy := rate.RateLimitingPolicy{
 		Limit:  10,
 		Window: 30 * time.Minute,
@@ -140,9 +146,10 @@ func createRateLimiter(config *Config) (*rate.TotalRateLimiter, error) {
 		if err != nil {
 			return nil, err
 		}
+		redisNamespace := fmt.Sprintf("%s:send-sms", config.RedisConfig.Namespace)
 		return rate.NewTotalRateLimiter(
-			rate.NewRedisRateLimiter(client, config.RedisConfig.Namespace, ipRateLimitingPolicy),
-			rate.NewRedisRateLimiter(client, config.RedisConfig.Namespace, phoneRateLimitingPolicy),
+			rate.NewRedisRateLimiter(client, redisNamespace, ipRateLimitingPolicy),
+			rate.NewRedisRateLimiter(client, redisNamespace, phoneRateLimitingPolicy),
 		), nil
 	}
 	if config.StorageType == "redis_sentinel" {
@@ -150,9 +157,51 @@ func createRateLimiter(config *Config) (*rate.TotalRateLimiter, error) {
 		if err != nil {
 			return nil, err
 		}
+		redisNamespace := fmt.Sprintf("%s:send-sms", config.RedisSentinelConfig.Namespace)
 		return rate.NewTotalRateLimiter(
-			rate.NewRedisRateLimiter(client, config.RedisSentinelConfig.Namespace, ipRateLimitingPolicy),
-			rate.NewRedisRateLimiter(client, config.RedisSentinelConfig.Namespace, phoneRateLimitingPolicy),
+			rate.NewRedisRateLimiter(client, redisNamespace, ipRateLimitingPolicy),
+			rate.NewRedisRateLimiter(client, redisNamespace, phoneRateLimitingPolicy),
+		), nil
+	}
+	if config.StorageType == "memory" {
+		return rate.NewTotalRateLimiter(
+			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), ipRateLimitingPolicy),
+			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), phoneRateLimitingPolicy),
+		), nil
+	}
+	return nil, errors.New("no valid storage type was set")
+}
+
+func createVerifyCodeRateLimiter(config *Config) (*rate.TotalRateLimiter, error) {
+	ipRateLimitingPolicy := rate.RateLimitingPolicy{
+		Limit:  25,
+		Window: 30 * time.Minute,
+	}
+	phoneRateLimitingPolicy := rate.RateLimitingPolicy{
+		Limit:  25,
+		Window: 30 * time.Minute,
+	}
+
+	if config.StorageType == "redis" {
+		client, err := redis.NewRedisClient(&config.RedisConfig)
+		if err != nil {
+			return nil, err
+		}
+		redisNamespace := fmt.Sprintf("%s:verify-code", config.RedisConfig.Namespace)
+		return rate.NewTotalRateLimiter(
+			rate.NewRedisRateLimiter(client, redisNamespace, ipRateLimitingPolicy),
+			rate.NewRedisRateLimiter(client, redisNamespace, phoneRateLimitingPolicy),
+		), nil
+	}
+	if config.StorageType == "redis_sentinel" {
+		client, err := redis.NewRedisSentinelClient(&config.RedisSentinelConfig)
+		if err != nil {
+			return nil, err
+		}
+		redisNamespace := fmt.Sprintf("%s:verify-code", config.RedisSentinelConfig.Namespace)
+		return rate.NewTotalRateLimiter(
+			rate.NewRedisRateLimiter(client, redisNamespace, ipRateLimitingPolicy),
+			rate.NewRedisRateLimiter(client, redisNamespace, phoneRateLimitingPolicy),
 		), nil
 	}
 	if config.StorageType == "memory" {
