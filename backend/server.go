@@ -276,7 +276,7 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message, err := createSmsMessage(state.smsTemplates, body.PhoneNumber, token, body.Language)
+	message, err := createSmsMessage(state.smsTemplates, token, body.Language)
 
 	if err != nil {
 		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to create sms", err)
