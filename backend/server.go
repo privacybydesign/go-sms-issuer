@@ -191,7 +191,7 @@ func handleEmbeddedIssuanceSendSms(state *ServerState, w http.ResponseWriter, r 
 		return
 	}
 
-	message, err := createSmsMessage(state.smsTemplates, body.PhoneNumber, token, body.Language)
+	message, err := createSmsMessage(state.smsTemplates, token, body.Language)
 
 	if err != nil {
 		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to create sms", err)
@@ -276,7 +276,7 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message, err := createSmsMessage(state.smsTemplates, body.PhoneNumber, token, body.Language)
+	message, err := createSmsMessage(state.smsTemplates, token, body.Language)
 
 	if err != nil {
 		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to create sms", err)
@@ -403,10 +403,9 @@ func getIpAddressForRequest(r *http.Request) string {
 	return ip
 }
 
-func createSmsMessage(templates map[string]string, phone, token, language string) (string, error) {
+func createSmsMessage(templates map[string]string, token, language string) (string, error) {
 	if fmtString, ok := templates[language]; ok {
-		urlSuffix := fmt.Sprintf("%v:%v", phone, token)
-		return fmt.Sprintf(fmtString, token, urlSuffix), nil
+		return fmt.Sprintf(fmtString, token), nil
 	}
 
 	return "", fmt.Errorf("no template for language '%v'", language)
