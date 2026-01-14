@@ -76,8 +76,8 @@ TURNSTILE_SITE_KEY=
     "full_credential": "irma-demo.sidn-pbdf.mobilenumber",
     "attribute": "mobilenumber",
     "sms_templates": {
-        "en": "Yivi verification code: %s\nOr directly via a link:\nhttps://sms-issuer.staging.yivi.app/en/#!verify:%s",
-        "nl": "Yivi verificatiecode: %s\nOf direct via een link:\nhttps://sms-issuer.staging.yivi.app/nl/#!verify:%s"
+        "en": "Yivi verification code: %s",
+        "nl": "Yivi verificatiecode: %s"
     },
     "sms_backend": "dummy",
     "cm_sms_sender_config": {
