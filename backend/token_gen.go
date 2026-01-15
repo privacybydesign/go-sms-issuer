@@ -42,13 +42,13 @@ func (tg *RandomTokenGenerator) GenerateToken() string {
 		token[i] = digits[tg.r.Intn(len(digits))]
 	}
 
-	// 2) Fill remaining characters from full charset
+	// Fill remaining characters from full charset
 	const charset = letters + digits
 	for i := numDigits; i < length; i++ {
 		token[i] = charset[tg.r.Intn(len(charset))]
 	}
 
-	// 3) Shuffle to avoid predictable digit positions
+	// Shuffle to avoid predictable digit positions
 	tg.r.Shuffle(len(token), func(i, j int) {
 		token[i], token[j] = token[j], token[i]
 	})
