@@ -1,10 +1,13 @@
 package main
 
 import (
+	log "go-sms-issuer/logging"
+	"math/big"
+	"math/rand"
 	"sync"
 	"time"
 
-	"math/rand"
+	crand "crypto/rand"
 )
 
 type TokenGenerator interface {
@@ -23,6 +26,18 @@ func NewRandomTokenGenerator() *RandomTokenGenerator {
 	}
 }
 
+func (tg *RandomTokenGenerator) generateRandomInt(max int) int64 {
+	num, err := crand.Int(crand.Reader, big.NewInt(int64(max)))
+	if err == nil {
+		return num.Int64()
+	}
+	log.Error.Printf("failed to generate cryptographically secure random number (max %v), falling back to pseudo random: %v", max, err)
+	tg.mu.Lock()
+	defer tg.mu.Unlock()
+
+	return int64(tg.r.Intn(max))
+}
+
 func (tg *RandomTokenGenerator) GenerateToken() string {
 	const (
 		letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -31,21 +46,18 @@ func (tg *RandomTokenGenerator) GenerateToken() string {
 	)
 	token := make([]byte, length)
 
-	tg.mu.Lock()
-	defer tg.mu.Unlock()
-
 	// Anywhere between 2 and 6 digits
-	numDigits := 2 + tg.r.Intn(4)
+	numDigits := 2 + tg.generateRandomInt(4)
 
 	// Add the digits first
 	for i := range numDigits {
-		token[i] = digits[tg.r.Intn(len(digits))]
+		token[i] = digits[tg.generateRandomInt(len(digits))]
 	}
 
 	// Fill remaining characters from full charset
 	const charset = letters + digits
 	for i := numDigits; i < length; i++ {
-		token[i] = charset[tg.r.Intn(len(charset))]
+		token[i] = charset[tg.generateRandomInt(len(charset))]
 	}
 
 	// Shuffle to avoid predictable digit positions
