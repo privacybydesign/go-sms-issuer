@@ -27,23 +27,23 @@ func TestGenerateToken_Properties(t *testing.T) {
 	for range iterations {
 		token := tg.GenerateToken()
 
-		// 1) Length
+		// Check each code is 6 characters
 		if len(token) != 6 {
 			t.Fatalf("expected length 6, got %d: %q", len(token), token)
 		}
 
-		// 2) Allowed charset
+		// Check if they're all part of the allowed charset
 		for _, r := range token {
 			if !isAllowedChar(r) {
 				t.Fatalf("token contains invalid character %q in %q", string(r), token)
 			}
-			// If you care about uppercase only (A-Z), this enforces that too:
+			// Ensure uppercase only
 			if unicode.IsLetter(r) && !strings.ContainsRune("ABCDEFGHIJKLMNOPQRSTUVWXYZ", r) {
 				t.Fatalf("token contains non-uppercase letter %q in %q", string(r), token)
 			}
 		}
 
-		// 3) At least 2 digits
+		// Assert at least 2 digits
 		d := countDigits(token)
 		if d < 2 {
 			t.Fatalf("expected at least 2 digits, got %d in %q", d, token)
