@@ -1,31 +1,82 @@
 package main
 
 import (
-	"time"
-
-	"golang.org/x/exp/rand"
+	crand "crypto/rand"
+	"fmt"
+	log "go-sms-issuer/logging"
+	"math/big"
 )
 
 type TokenGenerator interface {
-	GenerateToken() string
+	GenerateToken() (string, error)
 }
 
-type RandomTokenGenerator struct{}
+type RandomTokenGenerator struct {
+}
 
 func NewRandomTokenGenerator() *RandomTokenGenerator {
 	return &RandomTokenGenerator{}
 }
 
-func (tg *RandomTokenGenerator) GenerateToken() string {
-	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-	rand.Seed(uint64(time.Now().UnixNano()))
-	length := 6
-	token := make([]byte, length)
-	for i := range token {
-		token[i] = charset[rand.Intn(len(charset))]
+func generateRandomNumber(max int) (int, error) {
+	num, err := crand.Int(crand.Reader, big.NewInt(int64(max)))
+	if err != nil {
+		log.Error.Printf("failed to generate random number (max %v): %v", max, err)
+		return 0, fmt.Errorf("failed to generate random number: %w", err)
 	}
-	return string(token)
+	return int(num.Int64()), nil
+}
+
+// Cryptographically random shuffle
+func cryptoShuffle[T any](s []T) error {
+	for i := len(s) - 1; i > 0; i-- {
+		// random j in [0, i]
+		j, err := generateRandomNumber(i + 1)
+		if err != nil {
+			return err
+		}
+		s[i], s[j] = s[j], s[i]
+	}
+	return nil
+}
+
+func (tg *RandomTokenGenerator) GenerateToken() (string, error) {
+	const (
+		letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+		digits  = "0123456789"
+		length  = 6
+	)
+	token := make([]byte, length)
+
+	// Anywhere between 2 and 6 digits
+	numDigits, err := generateRandomNumber(4)
+	if err != nil {
+		return "", err
+	}
+	numDigits += 2
+
+	// Add the digits first
+	for i := range numDigits {
+		r, err := generateRandomNumber(len(digits))
+		if err != nil {
+			return "", err
+		}
+		token[i] = digits[r]
+	}
+
+	// Fill remaining characters from full charset
+	const charset = letters + digits
+	for i := numDigits; i < length; i++ {
+		r, err := generateRandomNumber(len(digits))
+		if err != nil {
+			return "", err
+		}
+		token[i] = charset[r]
+	}
+
+	// Shuffle to avoid predictable digit positions
+	err = cryptoShuffle(token)
+	return string(token), err
 }
 
 // for testing purposes it's useful to have a static token
@@ -34,6 +85,6 @@ type StaticTokenGenerator struct {
 	token string
 }
 
-func (tg *StaticTokenGenerator) GenerateToken() string {
-	return tg.token
+func (tg *StaticTokenGenerator) GenerateToken() (string, error) {
+	return tg.token, nil
 }

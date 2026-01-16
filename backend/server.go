@@ -182,7 +182,11 @@ func handleEmbeddedIssuanceSendSms(state *ServerState, w http.ResponseWriter, r 
 		return
 	}
 
-	token := state.tokenGenerator.GenerateToken()
+	token, err := state.tokenGenerator.GenerateToken()
+	if err != nil {
+		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to generate token", err)
+		return
+	}
 
 	err = state.tokenStorage.StoreToken(body.PhoneNumber, token)
 
@@ -267,7 +271,11 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := state.tokenGenerator.GenerateToken()
+	token, err := state.tokenGenerator.GenerateToken()
+	if err != nil {
+		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to generate token", err)
+		return
+	}
 
 	err = state.tokenStorage.StoreToken(body.PhoneNumber, token)
 
