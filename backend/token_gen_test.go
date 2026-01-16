@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"unicode"
+
+	"github.com/stretchr/testify/require"
 )
 
 func countDigits(s string) int {
@@ -25,7 +27,8 @@ func TestGenerateToken_Properties(t *testing.T) {
 
 	const iterations = 1000
 	for range iterations {
-		token := tg.GenerateToken()
+		token, err := tg.GenerateToken()
+		require.NoError(t, err)
 
 		// Check each code is 6 characters
 		if len(token) != 6 {
@@ -60,7 +63,8 @@ func TestGenerateToken_BasicUniquenessSanity(t *testing.T) {
 	seen := make(map[string]struct{}, n)
 
 	for range n {
-		token := tg.GenerateToken()
+		token, err := tg.GenerateToken()
+		require.NoError(t, err)
 		seen[token] = struct{}{}
 	}
 
