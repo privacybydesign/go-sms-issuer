@@ -3,6 +3,7 @@ package main
 import (
 	crand "crypto/rand"
 	"fmt"
+	log "go-sms-issuer/logging"
 	"math/big"
 )
 
@@ -20,6 +21,7 @@ func NewRandomTokenGenerator() *RandomTokenGenerator {
 func generateRandomNumber(max int) (int, error) {
 	num, err := crand.Int(crand.Reader, big.NewInt(int64(max)))
 	if err != nil {
+		log.Error.Printf("failed to generate random number (max %v): %v", max, err)
 		return 0, fmt.Errorf("failed to generate random number: %w", err)
 	}
 	return int(num.Int64()), nil
