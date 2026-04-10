@@ -4,6 +4,7 @@ import {
   PhoneInput,
   defaultCountries,
   parseCountry,
+  CountryData,
 } from 'react-international-phone';
 import 'react-international-phone/style.css';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
@@ -26,11 +27,52 @@ export default function IndexPage() {
   const [showError, setShowError] = useState(false);
   const navigate = useNavigate();
 
-  const countries = defaultCountries.filter((country) => {
+  // Excluded countries must match the irmamobile app's phone number entry screen.
+  const excludedCountries = new Set([
+    'af', // Afghanistan
+    'ao', // Angola
+    'dz', // Algeria
+    'az', // Azerbaijan
+    'bd', // Bangladesh
+    'by', // Belarus
+    'bt', // Bhutan
+    'bi', // Burundi
+    'eg', // Egypt
+    'et', // Ethiopia
+    'id', // Indonesia
+    'ir', // Iran
+    'iq', // Iraq
+    'jo', // Jordan
+    'kz', // Kazakhstan
+    'xk', // Kosovo
+    'kg', // Kyrgyzstan
+    'lb', // Lebanon
+    'ly', // Libya
+    'mg', // Madagascar
+    'mw', // Malawi
+    'mr', // Mauritania
+    'np', // Nepal
+    'pk', // Pakistan
+    'ru', // Russia
+    'sn', // Senegal
+    'si', // Slovenia
+    'lk', // Sri Lanka
+    'sy', // Syria
+    'tj', // Tajikistan
+    'tz', // Tanzania
+    'tn', // Tunisia
+    'tm', // Turkmenistan
+    'uz', // Uzbekistan
+    'ye', // Yemen
+  ]);
+
+  // Sint Maarten is not in the react-international-phone default list but is
+  // available in the irmamobile app, so we add it as a custom country entry.
+  const sintMaarten: CountryData = ['Sint Maarten', 'sx', '1721'];
+
+  const countries = [...defaultCountries, sintMaarten].filter((country) => {
     const { iso2 } = parseCountry(country);
-    return ['at', 'be', 'bg', 'cy', 'dk', 'de', 'ee', 'fi', 'fr', 'gr', 'hu', 'ie',
-      'is', 'it', 'hr', 'lv', 'lt', 'li', 'lu', 'mt', 'mc', 'nl', 'no', 'at',
-      'pl', 'pt', 'ro', 'si', 'sk', 'es', 'cz', 'gb', 'se', 'ch'].includes(iso2);
+    return !excludedCountries.has(iso2);
   });
 
   const onChange = (value: string) => {
