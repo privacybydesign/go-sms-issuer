@@ -61,7 +61,7 @@ jobs:
             TURNSTILE_SITE_KEY=${{ secrets.TURNSTILE_SITE_KEY }}
 
       - name: Scan Image
-        uses: anchore/scan-action@v3
+        uses: anchore/scan-action@v5
         id: scan
         with:
           image: local/go-sms-issuer:scan
