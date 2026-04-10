@@ -70,10 +70,16 @@ export default function IndexPage() {
   // available in the irmamobile app, so we add it as a custom country entry.
   const sintMaarten: CountryData = ['Sint Maarten', 'sx', '1721'];
 
-  const countries = [...defaultCountries, sintMaarten].filter((country) => {
-    const { iso2 } = parseCountry(country);
-    return !excludedCountries.has(iso2);
-  });
+  const countries = [...defaultCountries, sintMaarten]
+    .filter((country) => {
+      const { iso2 } = parseCountry(country);
+      return !excludedCountries.has(iso2);
+    })
+    .sort((a, b) => {
+      const nameA = parseCountry(a).name;
+      const nameB = parseCountry(b).name;
+      return nameA.localeCompare(nameB);
+    });
 
   const onChange = (value: string) => {
     setPhoneNumber(value);
@@ -107,6 +113,7 @@ export default function IndexPage() {
               value={phoneNumber}
               onChange={onChange}
               countries={countries}
+              preferredCountries={['nl', 'de', 'be', 'gb', 'us', 'fr']}
               autoFocus
             />
             <p>
