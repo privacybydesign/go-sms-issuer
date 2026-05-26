@@ -28,14 +28,11 @@ RUN CGO_ENABLED=0 go build -o ./server
 
 # -----------------------------------------------------
 
-FROM golang:1.26 AS runtime
+FROM gcr.io/distroless/static-debian12:nonroot AS runtime
 WORKDIR /app/backend
 
 COPY --from=backend-build /app/backend/server /app/backend
 COPY --from=frontend-build /app/frontend/build/ /app/frontend/build
-
-RUN useradd --system --no-create-home --uid 10001 app
-USER app
 
 EXPOSE 8080
 ENTRYPOINT [ "/app/backend/server", "--config", "/secrets/config.json" ]
