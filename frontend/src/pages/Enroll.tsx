@@ -46,7 +46,7 @@ export default function EnrollPage() {
     const res: VerifyResponse = await response.json();
     import("@privacybydesign/yivi-frontend").then((yivi) => {
       const issuance = yivi.newPopup({
-        language: i18n.language,
+        language: i18n.language as "nl" | "en",
         session: {
           url: res.irma_server_url,
           start: {
