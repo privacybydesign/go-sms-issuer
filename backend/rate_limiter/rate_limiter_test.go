@@ -88,8 +88,8 @@ func TestRateLimiterForMultipleClients(t *testing.T) {
 	phones := []string{"+31612345678", "+31612345679", "+31612345677"}
 
 	// first three attempts should just go by normally
-	for round := 0; round < 5; round++ {
-		for i := 0; i < len(ips); i++ {
+	for round := range 5 {
+		for i := range ips {
 			ip := ips[i]
 			phone := phones[i]
 			allow, remaining := rl.Allow(ip, phone)
@@ -107,7 +107,7 @@ func TestRateLimiterForMultipleClients(t *testing.T) {
 	}
 
 	// 6th attempt should give a timeout of 25
-	for i := 0; i < len(ips); i++ {
+	for i := range ips {
 		ip := ips[i]
 		phone := phones[i]
 		allow, remaining := rl.Allow(ip, phone)
@@ -129,7 +129,7 @@ func TestRateLimiterForMultipleClients(t *testing.T) {
 	// after 26 minutes you should be allowed to do another request
 	clock.IncTime(26 * time.Minute)
 
-	for i := 0; i < len(ips); i++ {
+	for i := range ips {
 		ip := ips[i]
 		phone := phones[i]
 		allow, remaining := rl.Allow(ip, phone)

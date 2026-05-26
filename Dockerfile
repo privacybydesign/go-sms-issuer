@@ -18,7 +18,7 @@ RUN npm run build
 
 # -----------------------------------------------------
 
-FROM golang:1.25 AS backend-build
+FROM golang:1.26 AS backend-build
 WORKDIR /app/backend
 COPY backend .
 RUN go mod download
@@ -28,7 +28,7 @@ RUN CGO_ENABLED=0 go build -o ./server
 
 # -----------------------------------------------------
 
-FROM golang:1.25 AS runtime
+FROM golang:1.26 AS runtime
 WORKDIR /app/backend
 
 COPY --from=backend-build /app/backend/server /app/backend
