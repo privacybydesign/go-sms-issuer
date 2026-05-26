@@ -1,3 +1,9 @@
+# check=skip=SecretsUsedInArgOrEnv
+# TURNSTILE_SITE_KEY is the *public* Cloudflare Turnstile site key — it is
+# bundled into the client JS by Vite (VITE_* prefix) and rendered into the
+# served HTML, so passing it via ARG is correct. The matching secret key
+# lives only in backend config.
+
 FROM node:23 AS frontend-build
 WORKDIR /app/frontend
 COPY frontend .
