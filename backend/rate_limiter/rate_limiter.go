@@ -142,10 +142,13 @@ func (r *InMemoryRateLimiter) Allow(key string) (allow bool, timeout time.Durati
 type TotalRateLimiter struct {
 	phone RateLimiter
 	ip    RateLimiter
+	// when true the ip limiter runs in shadow mode: requests are still
+	// tracked and logged per ip, but never denied based on ip
+	disableIpLimiting bool
 }
 
-func NewTotalRateLimiter(ip, phone RateLimiter) *TotalRateLimiter {
-	return &TotalRateLimiter{ip: ip, phone: phone}
+func NewTotalRateLimiter(ip, phone RateLimiter, disableIpLimiting bool) *TotalRateLimiter {
+	return &TotalRateLimiter{ip: ip, phone: phone, disableIpLimiting: disableIpLimiting}
 }
 
 func (l *TotalRateLimiter) Allow(ip, phone string) (allow bool, timeoutRemaining time.Duration) {
@@ -164,11 +167,28 @@ func (l *TotalRateLimiter) Allow(ip, phone string) (allow bool, timeoutRemaining
 
 	allowIp, timeRemainingIp, err := l.ip.Allow(ipKey)
 	if err != nil {
-		slog.Error("rate limiter: ip check failed, denying request",
+		if l.disableIpLimiting {
+			slog.Error("rate limiter: ip check failed (ip rate limiting disabled, not denying)",
+				"ip", ip,
+				"phone", maskedPhone,
+				"error", err)
+			allowIp, timeRemainingIp = true, 0
+		} else {
+			slog.Error("rate limiter: ip check failed, denying request",
+				"ip", ip,
+				"phone", maskedPhone,
+				"error", err)
+			return false, 30 * time.Minute
+		}
+	}
+
+	if l.disableIpLimiting && !allowIp {
+		// shadow mode: log what enforcement would have done, but allow the request
+		slog.Warn("rate limiter: ip limit exceeded but ip rate limiting is disabled, allowing request",
 			"ip", ip,
 			"phone", maskedPhone,
-			"error", err)
-		return false, 30 * time.Minute
+			"retry_after", timeRemainingIp)
+		allowIp, timeRemainingIp = true, 0
 	}
 
 	if !allowIp || !allowPhone {

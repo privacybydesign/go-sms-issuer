@@ -1,6 +1,7 @@
 package rate_limiter
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -319,6 +320,52 @@ func newTestRedisRateLimiter(t *testing.T, policy RateLimitingPolicy) (*RedisRat
 	return NewRedisRateLimiter(client, "test", policy), mr
 }
 
+func TestRateLimiterWithIpLimitingDisabled(t *testing.T) {
+	clock := &mockClock{time: time.Now()}
+
+	ipPolicy := RateLimitingPolicy{
+		Window: 30 * time.Minute,
+		Limit:  10,
+	}
+	phonePolicy := RateLimitingPolicy{
+		Window: 30 * time.Minute,
+		Limit:  5,
+	}
+
+	rl := NewTotalRateLimiter(
+		NewInMemoryRateLimiter(clock, ipPolicy),
+		NewInMemoryRateLimiter(clock, phonePolicy),
+		true,
+	)
+
+	ip := "127.0.0.1"
+
+	// with ip limiting disabled, going way past the ip limit from a single ip
+	// should still be allowed as long as each phone stays within its limit
+	for i := range 30 {
+		phone := fmt.Sprintf("+316%08d", i)
+		allow, remaining := rl.Allow(ip, phone)
+		if !allow {
+			t.Fatalf("request %v should be allowed with ip limiting disabled, remaining: %v", i, remaining)
+		}
+		clock.IncTime(time.Second)
+	}
+
+	// the phone limit should still be enforced
+	phone := "+31611111111"
+	for i := 1; i <= 5; i++ {
+		allow, remaining := rl.Allow(ip, phone)
+		if !allow {
+			t.Fatalf("request %v for phone should be allowed, remaining: %v", i, remaining)
+		}
+	}
+
+	allow, _ := rl.Allow(ip, phone)
+	if allow {
+		t.Fatalf("6th request for the same phone should be rate limited even with ip limiting disabled")
+	}
+}
+
 func newTestRateLimiter(clock Clock) *TotalRateLimiter {
 	ipPolicy := RateLimitingPolicy{
 		Window: 30 * time.Minute,
@@ -332,7 +379,7 @@ func newTestRateLimiter(clock Clock) *TotalRateLimiter {
 	phone := NewInMemoryRateLimiter(clock, phonePolicy)
 	ip := NewInMemoryRateLimiter(clock, ipPolicy)
 
-	return NewTotalRateLimiter(ip, phone)
+	return NewTotalRateLimiter(ip, phone, false)
 }
 
 type mockClock struct {
