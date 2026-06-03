@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	log "go-sms-issuer/logging"
+	"go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
 	turnstile "go-sms-issuer/turnstile"
 	"io"
+	"log/slog"
 	"math"
 	"net"
 	"net/http"
@@ -104,7 +105,7 @@ func NewServer(state *ServerState, config ServerConfig) (*Server, error) {
 	router.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		err := json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 		if err != nil {
-			log.Error.Fatalf("failed to write body to http response: %v", err)
+			slog.Error("failed to write health response", "error", err)
 		}
 	})
 
@@ -149,16 +150,15 @@ type EmbeddedIssuance_SendSmsPayload struct {
 }
 
 func handleEmbeddedIssuanceSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
-	defer func() {
-		if err := r.Body.Close(); err != nil {
-			log.Error.Printf("failed to close request body: %v", err)
-		}
-	}()
+	endpoint := r.URL.Path
+	slog.Info("Received request", "endpoint", endpoint)
+
+	defer closeRequestBody(r)
 
 	bodyContent, err := io.ReadAll(r.Body)
 
 	if err != nil {
-		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to read body of send-sms request", err)
+		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to read body of send-sms request", err, "endpoint", endpoint)
 		return
 	}
 
@@ -166,7 +166,7 @@ func handleEmbeddedIssuanceSendSms(state *ServerState, w http.ResponseWriter, r 
 	err = json.Unmarshal(bodyContent, &body)
 
 	if err != nil {
-		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to parse json for body of send-sms request", err)
+		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to parse json for body of send-sms request", err, "endpoint", endpoint)
 		return
 	}
 
@@ -175,47 +175,42 @@ func handleEmbeddedIssuanceSendSms(state *ServerState, w http.ResponseWriter, r 
 	allow, timeout := state.sendSmsRateLimiter.Allow(ip, body.PhoneNumber)
 
 	if !allow {
-		// rounding so it doesn't show up weird on the client side
-		roundedSecs := int(math.Round(timeout.Seconds()))
-		w.Header().Set("Retry-After", fmt.Sprintf("%d", roundedSecs))
-		respondWithErr(w, http.StatusTooManyRequests, ErrorRateLimit, "too many requests", err)
+		respondWithRateLimitErr(w, endpoint, ip, body.PhoneNumber, timeout)
 		return
 	}
 
 	token, err := state.tokenGenerator.GenerateToken()
 	if err != nil {
-		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to generate token", err)
+		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to generate token", err, "endpoint", endpoint)
 		return
 	}
 
 	err = state.tokenStorage.StoreToken(body.PhoneNumber, token)
 
 	if err != nil {
-		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to store token", err)
+		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to store token", err, "endpoint", endpoint)
 		return
 	}
 
 	message, err := createSmsMessage(state.smsTemplates, token, body.Language)
 
 	if err != nil {
-		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to create sms", err)
+		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to create sms", err, "endpoint", endpoint)
 		return
 	}
 
-	log.Info.Printf("sending sms")
+	slog.Info("sending sms",
+		"endpoint", endpoint,
+		"phone", logging.MaskPhone(body.PhoneNumber),
+		"language", body.Language)
 	err = state.smsSender.SendSms(body.PhoneNumber, message)
 
 	if err != nil {
-		respondWithErr(w, http.StatusInternalServerError, ErrorSendingSms, "failed to send sms", err)
+		respondWithErr(w, http.StatusInternalServerError, ErrorSendingSms, "failed to send sms", err, "endpoint", endpoint)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-
-	err = r.Body.Close()
-	if err != nil {
-		log.Error.Printf("error while closing body: %v", err)
-	}
 }
 
 // -----------------------------------------------------------------------------------
@@ -227,16 +222,15 @@ type SendSmsPayload struct {
 }
 
 func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
-	defer func() {
-		if err := r.Body.Close(); err != nil {
-			log.Error.Printf("failed to close request body: %v", err)
-		}
-	}()
+	endpoint := r.URL.Path
+	slog.Info("Received request", "endpoint", endpoint)
+
+	defer closeRequestBody(r)
 
 	bodyContent, err := io.ReadAll(r.Body)
 
 	if err != nil {
-		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to read body of send-sms request", err)
+		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to read body of send-sms request", err, "endpoint", endpoint)
 		return
 	}
 
@@ -244,18 +238,18 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	err = json.Unmarshal(bodyContent, &body)
 
 	if err != nil {
-		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to parse json for body of send-sms request", err)
+		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to parse json for body of send-sms request", err, "endpoint", endpoint)
 		return
 	}
 
 	// Return an erro when the captcha is nil or empty
 	if body.Captcha == "" {
-		respondWithErr(w, http.StatusBadRequest, ErrorInvalidCaptcha, "captcha is required", fmt.Errorf("captcha is empty"))
+		respondWithErr(w, http.StatusBadRequest, ErrorInvalidCaptcha, "captcha is required", fmt.Errorf("captcha is empty"), "endpoint", endpoint)
 		return
 	}
 
 	if !state.turnstileVerifier.Verify(body.Captcha, getIpAddressForRequest(r)) {
-		respondWithErr(w, http.StatusBadRequest, ErrorInvalidCaptcha, "invalid captcha", fmt.Errorf("captcha validation failed"))
+		respondWithErr(w, http.StatusBadRequest, ErrorInvalidCaptcha, "invalid captcha", fmt.Errorf("captcha validation failed"), "endpoint", endpoint)
 		return
 	}
 
@@ -264,47 +258,42 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	allow, timeout := state.sendSmsRateLimiter.Allow(ip, body.PhoneNumber)
 
 	if !allow {
-		// rounding so it doesn't show up weird on the client side
-		roundedSecs := int(math.Round(timeout.Seconds()))
-		w.Header().Set("Retry-After", fmt.Sprintf("%d", roundedSecs))
-		respondWithErr(w, http.StatusTooManyRequests, ErrorRateLimit, "too many requests", err)
+		respondWithRateLimitErr(w, endpoint, ip, body.PhoneNumber, timeout)
 		return
 	}
 
 	token, err := state.tokenGenerator.GenerateToken()
 	if err != nil {
-		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to generate token", err)
+		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to generate token", err, "endpoint", endpoint)
 		return
 	}
 
 	err = state.tokenStorage.StoreToken(body.PhoneNumber, token)
 
 	if err != nil {
-		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to store token", err)
+		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to store token", err, "endpoint", endpoint)
 		return
 	}
 
 	message, err := createSmsMessage(state.smsTemplates, token, body.Language)
 
 	if err != nil {
-		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to create sms", err)
+		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to create sms", err, "endpoint", endpoint)
 		return
 	}
 
-	log.Info.Printf("sending sms")
+	slog.Info("sending sms",
+		"endpoint", endpoint,
+		"phone", logging.MaskPhone(body.PhoneNumber),
+		"language", body.Language)
 	err = state.smsSender.SendSms(body.PhoneNumber, message)
 
 	if err != nil {
-		respondWithErr(w, http.StatusInternalServerError, ErrorSendingSms, "failed to send sms", err)
+		respondWithErr(w, http.StatusInternalServerError, ErrorSendingSms, "failed to send sms", err, "endpoint", endpoint)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-
-	err = r.Body.Close()
-	if err != nil {
-		log.Error.Printf("error while closing body: %v", err)
-	}
 }
 
 // -----------------------------------------------------------------------------------
@@ -320,23 +309,22 @@ type VerifyResponse struct {
 }
 
 func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
-	defer func() {
-		if err := r.Body.Close(); err != nil {
-			log.Error.Printf("failed to close request body: %v", err)
-		}
-	}()
+	endpoint := r.URL.Path
+	slog.Info("Received request", "endpoint", endpoint)
+
+	defer closeRequestBody(r)
 
 	bodyContent, err := io.ReadAll(r.Body)
 
 	if err != nil {
-		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to read body of verify request", err)
+		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to read body of verify request", err, "endpoint", endpoint)
 		return
 	}
 
 	var body VerifyPayload
 	err = json.Unmarshal(bodyContent, &body)
 	if err != nil {
-		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to parse body as json", err)
+		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to parse body as json", err, "endpoint", endpoint)
 		return
 	}
 
@@ -345,29 +333,26 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	allow, timeout := state.verifyCodeRateLimiter.Allow(ip, body.PhoneNumber)
 
 	if !allow {
-		// rounding so it doesn't show up weird on the client side
-		roundedSecs := int(math.Round(timeout.Seconds()))
-		w.Header().Set("Retry-After", fmt.Sprintf("%d", roundedSecs))
-		respondWithErr(w, http.StatusTooManyRequests, ErrorRateLimit, "too many requests", err)
+		respondWithRateLimitErr(w, endpoint, ip, body.PhoneNumber, timeout)
 		return
 	}
 
 	expectedToken, err := state.tokenStorage.RetrieveToken(body.PhoneNumber)
 
 	if err != nil {
-		respondWithErr(w, http.StatusBadRequest, ErrorCannotValidateToken, "no active token request", err)
+		respondWithErr(w, http.StatusBadRequest, ErrorCannotValidateToken, "no active token request", err, "endpoint", endpoint, "phone", logging.MaskPhone(body.PhoneNumber))
 		return
 	}
 
 	if body.Token != expectedToken {
-		respondWithErr(w, http.StatusUnauthorized, ErrorCannotValidateToken, "token incorrect", err)
+		respondWithErr(w, http.StatusUnauthorized, ErrorCannotValidateToken, "token incorrect", nil, "endpoint", endpoint, "phone", logging.MaskPhone(body.PhoneNumber))
 		return
 	}
 
 	jwt, err := state.jwtCreator.CreateJwt(body.PhoneNumber)
 
 	if err != nil {
-		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to create JWT", err)
+		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to create JWT", err, "endpoint", endpoint)
 		return
 	}
 
@@ -378,7 +363,7 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 
 	payload, err := json.Marshal(responseMessage)
 	if err != nil {
-		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to marshal response message", err)
+		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to marshal response message", err, "endpoint", endpoint)
 		return
 	}
 
@@ -386,18 +371,13 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_, err = w.Write(payload)
 	if err != nil {
-		log.Error.Fatalf("failed to write body to http response: %v", err)
+		slog.Error("failed to write body to http response", "error", err)
 	}
 
 	// can't really do anything about the error if it were to occur...
 	err = state.tokenStorage.RemoveToken(body.PhoneNumber)
 	if err != nil {
-		log.Error.Printf("error while removing token: %v", err)
-	}
-
-	err = r.Body.Close()
-	if err != nil {
-		log.Error.Printf("error while closing body: %v", err)
+		slog.Error("error while removing token", "error", err, "phone", logging.MaskPhone(body.PhoneNumber))
 	}
 }
 
@@ -419,11 +399,34 @@ func createSmsMessage(templates map[string]string, token, language string) (stri
 	return "", fmt.Errorf("no template for language '%v'", language)
 }
 
-func respondWithErr(w http.ResponseWriter, code int, responseBody string, logMsg string, e error) {
-	m := fmt.Sprintf("%v: %v", logMsg, e)
-	log.Error.Printf("%s\n -> returning statuscode %d with message %v", m, code, responseBody)
+func closeRequestBody(r *http.Request) {
+	if err := r.Body.Close(); err != nil {
+		slog.Error("failed to close request body", "error", err)
+	}
+}
+
+// respondWithRateLimitErr writes a 429 response with a Retry-After header and
+// logs the relevant rate limiting context
+func respondWithRateLimitErr(w http.ResponseWriter, endpoint, ip, phone string, timeout time.Duration) {
+	// rounding so it doesn't show up weird on the client side
+	roundedSecs := int(math.Round(timeout.Seconds()))
+	w.Header().Set("Retry-After", fmt.Sprintf("%d", roundedSecs))
+	respondWithErr(w, http.StatusTooManyRequests, ErrorRateLimit, "too many requests", nil,
+		"endpoint", endpoint,
+		"ip", ip,
+		"phone", logging.MaskPhone(phone),
+		"retry_after_seconds", roundedSecs)
+}
+
+func respondWithErr(w http.ResponseWriter, code int, responseBody string, logMsg string, e error, extras ...any) {
+	args := []any{"status_code", code, "response_body", responseBody}
+	if e != nil {
+		args = append(args, "error", e)
+	}
+	args = append(args, extras...)
+	slog.Error(logMsg, args...)
 	w.WriteHeader(code)
 	if _, err := w.Write([]byte(responseBody)); err != nil {
-		log.Error.Printf("failed to write body to http response: %v", err)
+		slog.Error("failed to write body to http response", "error", err)
 	}
 }

@@ -3,8 +3,9 @@ package main
 import (
 	"errors"
 	"fmt"
-	log "go-sms-issuer/logging"
+	"go-sms-issuer/logging"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -75,7 +76,7 @@ func (s *CmSmsSender) SendSms(phone, message string) error {
 
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			log.Error.Printf("failed to close request body: %v", err)
+			slog.Error("failed to close response body", "error", err)
 		}
 	}()
 
@@ -95,7 +96,7 @@ func (s *CmSmsSender) SendSms(phone, message string) error {
 
 	err = resp.Body.Close()
 	if err != nil {
-		log.Error.Printf("error while closing response body: %v", err)
+		slog.Error("error while closing response body", "error", err)
 	}
 
 	return nil
@@ -104,6 +105,6 @@ func (s *CmSmsSender) SendSms(phone, message string) error {
 type DummySmsSender struct{}
 
 func (s *DummySmsSender) SendSms(phone, message string) error {
-	log.Info.Printf("Sending sms to %v: %v", phone, message)
+	slog.Info("Sending sms", "phone", logging.MaskPhone(phone), "message", message)
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"go-sms-issuer/logging"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -39,24 +40,36 @@ func (r *RedisRateLimiter) Allow(key string) (bool, time.Duration, error) {
 	key = fmt.Sprintf("%s:%s", r.namespace, key)
 	count, err := r.client.Incr(r.ctx, key).Result()
 	if err != nil {
-		logging.Error.Printf("Redis Incr failed: %v\n", err)
+		slog.Error("rate limiter: redis INCR failed", "key", key, "error", err)
 		return false, 0, err
 	}
 	if count == 1 {
 		// First request: set expiry
 		err = r.client.Expire(r.ctx, key, r.policy.Window).Err()
 		if err != nil {
-			logging.Error.Printf("Redis Expire failed: %v\n", err)
+			slog.Error("rate limiter: redis EXPIRE failed", "key", key, "error", err)
 			return false, 0, err
 		}
 	}
 	if count >= int64(r.policy.Limit) {
 		timeRemaining, err := r.client.TTL(r.ctx, key).Result()
 		if err != nil {
+			slog.Error("rate limiter: redis TTL failed", "key", key, "error", err)
 			return false, 0, err
 		}
+		slog.Debug("rate limiter: limit reached",
+			"key", key,
+			"count", count,
+			"limit", r.policy.Limit,
+			"window", r.policy.Window,
+			"retry_after", timeRemaining)
 		return false, timeRemaining, nil
 	}
+	slog.Debug("rate limiter: request allowed",
+		"key", key,
+		"count", count,
+		"limit", r.policy.Limit,
+		"window", r.policy.Window)
 	return true, 0, nil
 }
 
@@ -104,8 +117,19 @@ func (r *InMemoryRateLimiter) Allow(key string) (allow bool, timeout time.Durati
 			entry.count = 0
 			return true, 0, nil
 		}
+		slog.Debug("rate limiter: limit reached",
+			"key", key,
+			"count", entry.count,
+			"limit", r.policy.Limit,
+			"window", r.policy.Window,
+			"retry_after", timeUntilExpiry)
 		return false, timeUntilExpiry, nil
 	}
+	slog.Debug("rate limiter: request allowed",
+		"key", key,
+		"count", entry.count,
+		"limit", r.policy.Limit,
+		"window", r.policy.Window)
 	return true, 0, nil
 
 }
@@ -123,19 +147,40 @@ func NewTotalRateLimiter(ip, phone RateLimiter) *TotalRateLimiter {
 func (l *TotalRateLimiter) Allow(ip, phone string) (allow bool, timeoutRemaining time.Duration) {
 	ipKey := fmt.Sprintf("ip:%s", ip)
 	phoneKey := fmt.Sprintf("phone:%s", phone)
+	maskedPhone := logging.MaskPhone(phone)
 
 	allowPhone, timeRemainingPhone, err := l.phone.Allow(phoneKey)
 	if err != nil {
+		slog.Error("rate limiter: phone check failed, denying request",
+			"ip", ip,
+			"phone", maskedPhone,
+			"error", err)
 		return false, 30 * time.Minute
 	}
 
 	allowIp, timeRemainingIp, err := l.ip.Allow(ipKey)
 	if err != nil {
+		slog.Error("rate limiter: ip check failed, denying request",
+			"ip", ip,
+			"phone", maskedPhone,
+			"error", err)
 		return false, 30 * time.Minute
 	}
 
 	if !allowIp || !allowPhone {
-		return false, max(timeRemainingIp, timeRemainingPhone)
+		limitedBy := "ip"
+		if !allowPhone && !allowIp {
+			limitedBy = "ip+phone"
+		} else if !allowPhone {
+			limitedBy = "phone"
+		}
+		retryAfter := max(timeRemainingIp, timeRemainingPhone)
+		slog.Warn("rate limit exceeded",
+			"limited_by", limitedBy,
+			"ip", ip,
+			"phone", maskedPhone,
+			"retry_after", retryAfter)
+		return false, retryAfter
 	}
 
 	return true, 0
