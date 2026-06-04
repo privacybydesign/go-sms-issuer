@@ -17,7 +17,11 @@ import (
 type Config struct {
 	ServerConfig ServerConfig `json:"server_config"`
 
-	LogLevel          string `json:"log_level"`
+	// LogLevel is deserialized by slog.Level itself: it accepts "debug",
+	// "info", "warn" and "error" (case-insensitive). An unknown value makes
+	// readConfigFile fail, so typos abort startup instead of silently
+	// running at info. When the key is absent the zero value is info.
+	LogLevel          slog.Level `json:"log_level"`
 	JwtPrivateKeyPath string `json:"jwt_private_key_path"`
 	IrmaServerUrl     string `json:"irma_server_url"`
 	IssuerId          string `json:"issuer_id"`
@@ -49,12 +53,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize logger with the configured level, fallback to "info" if not set
-	logLevel := config.LogLevel
-	if logLevel == "" {
-		logLevel = "info"
-	}
-	logging.InitLogger(logLevel)
+	logging.InitLogger(config.LogLevel)
 
 	slog.Info("using config", "path", *configPath)
 	slog.Info("hosting on", "host", config.ServerConfig.Host, "port", config.ServerConfig.Port)

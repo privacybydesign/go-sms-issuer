@@ -1,9 +1,7 @@
 package logging
 
 import (
-	"io"
 	"log/slog"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,39 +13,20 @@ func TestDefaultLoggerInitialized(t *testing.T) {
 }
 
 func TestInitLoggerWithDifferentLevels(t *testing.T) {
-	tests := []struct {
-		name          string
-		level         string
-		expectedLevel slog.Level
-	}{
-		{"debug level", "debug", slog.LevelDebug},
-		{"info level", "info", slog.LevelInfo},
-		{"warn level", "warn", slog.LevelWarn},
-		{"warning level", "warning", slog.LevelWarn},
-		{"error level", "error", slog.LevelError},
-		{"default for unknown", "invalid", slog.LevelInfo},
-		{"empty string defaults to info", "", slog.LevelInfo},
-		{"uppercase", "DEBUG", slog.LevelDebug},
-		{"mixed case", "InFo", slog.LevelInfo},
-	}
+	levels := []slog.Level{slog.LevelDebug, slog.LevelInfo, slog.LevelWarn, slog.LevelError}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			InitLogger(tt.level)
+	for _, level := range levels {
+		t.Run(level.String(), func(t *testing.T) {
+			InitLogger(level)
 			logger := GetLogger()
 			require.NotNil(t, logger)
-
-			// Verify the level is set correctly
-			actualLevel := GetLevel()
-			require.Equal(t, tt.expectedLevel, actualLevel,
-				"Expected level %v but got %v for input %q",
-				tt.expectedLevel, actualLevel, tt.level)
+			require.Equal(t, level, GetLevel())
 		})
 	}
 }
 
 func TestGetLogger(t *testing.T) {
-	InitLogger("info")
+	InitLogger(slog.LevelInfo)
 	logger1 := GetLogger()
 	logger2 := GetLogger()
 
@@ -70,48 +49,6 @@ func TestMaskPhone(t *testing.T) {
 	for _, tt := range tests {
 		require.Equal(t, tt.expected, MaskPhone(tt.phone))
 	}
-}
-
-func TestInitLoggerWarnsOnUnknownLevel(t *testing.T) {
-	tests := []struct {
-		name       string
-		level      string
-		expectWarn bool
-	}{
-		{"typo warns", "infor", true},
-		{"unsupported level warns", "trace", true},
-		{"valid level is silent", "debug", false},
-		{"empty string is silent", "", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			output := captureStderr(t, func() { InitLogger(tt.level) })
-			if tt.expectWarn {
-				require.Contains(t, output, "unknown log level, defaulting to info")
-				require.Contains(t, output, tt.level)
-			} else {
-				require.NotContains(t, output, "unknown log level")
-			}
-		})
-	}
-}
-
-// captureStderr runs fn while redirecting os.Stderr and returns what was written
-func captureStderr(t *testing.T, fn func()) string {
-	t.Helper()
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	orig := os.Stderr
-	os.Stderr = w
-	defer func() { os.Stderr = orig }()
-
-	fn()
-
-	require.NoError(t, w.Close())
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
-	return string(out)
 }
 
 func TestMaskKey(t *testing.T) {
