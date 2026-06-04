@@ -17,11 +17,12 @@ func init() {
 // InitLogger initializes the global logger with the specified level
 func InitLogger(level string) {
 	var logLevel slog.Level
+	unknownLevel := false
 
 	switch strings.ToLower(level) {
 	case "debug":
 		logLevel = slog.LevelDebug
-	case "info":
+	case "info", "":
 		logLevel = slog.LevelInfo
 	case "warn", "warning":
 		logLevel = slog.LevelWarn
@@ -29,6 +30,7 @@ func InitLogger(level string) {
 		logLevel = slog.LevelError
 	default:
 		logLevel = slog.LevelInfo
+		unknownLevel = true
 	}
 
 	currentLevel = logLevel
@@ -40,6 +42,12 @@ func InitLogger(level string) {
 	handler := slog.NewTextHandler(os.Stderr, opts)
 	logger = slog.New(handler)
 	slog.SetDefault(logger)
+
+	// warn after the logger is set up, so config typos like "infor"
+	// or "trace" don't silently end up as info
+	if unknownLevel {
+		slog.Warn("unknown log level, defaulting to info", "log_level", level)
+	}
 }
 
 // GetLogger returns the global logger instance

@@ -1,7 +1,9 @@
 package logging
 
 import (
+	"io"
 	"log/slog"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -68,6 +70,48 @@ func TestMaskPhone(t *testing.T) {
 	for _, tt := range tests {
 		require.Equal(t, tt.expected, MaskPhone(tt.phone))
 	}
+}
+
+func TestInitLoggerWarnsOnUnknownLevel(t *testing.T) {
+	tests := []struct {
+		name       string
+		level      string
+		expectWarn bool
+	}{
+		{"typo warns", "infor", true},
+		{"unsupported level warns", "trace", true},
+		{"valid level is silent", "debug", false},
+		{"empty string is silent", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := captureStderr(t, func() { InitLogger(tt.level) })
+			if tt.expectWarn {
+				require.Contains(t, output, "unknown log level, defaulting to info")
+				require.Contains(t, output, tt.level)
+			} else {
+				require.NotContains(t, output, "unknown log level")
+			}
+		})
+	}
+}
+
+// captureStderr runs fn while redirecting os.Stderr and returns what was written
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	orig := os.Stderr
+	os.Stderr = w
+	defer func() { os.Stderr = orig }()
+
+	fn()
+
+	require.NoError(t, w.Close())
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+	return string(out)
 }
 
 func TestMaskKey(t *testing.T) {
