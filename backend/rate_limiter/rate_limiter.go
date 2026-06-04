@@ -38,27 +38,28 @@ func NewRedisRateLimiter(redis *redis.Client, namespace string, policy RateLimit
 
 func (r *RedisRateLimiter) Allow(key string) (bool, time.Duration, error) {
 	key = fmt.Sprintf("%s:%s", r.namespace, key)
+	maskedKey := logging.MaskKey(key)
 	count, err := r.client.Incr(r.ctx, key).Result()
 	if err != nil {
-		slog.Error("rate limiter: redis INCR failed", "key", key, "error", err)
+		slog.Error("rate limiter: redis INCR failed", "key", maskedKey, "error", err)
 		return false, 0, err
 	}
 	if count == 1 {
 		// First request: set expiry
 		err = r.client.Expire(r.ctx, key, r.policy.Window).Err()
 		if err != nil {
-			slog.Error("rate limiter: redis EXPIRE failed", "key", key, "error", err)
+			slog.Error("rate limiter: redis EXPIRE failed", "key", maskedKey, "error", err)
 			return false, 0, err
 		}
 	}
 	if count >= int64(r.policy.Limit) {
 		timeRemaining, err := r.client.TTL(r.ctx, key).Result()
 		if err != nil {
-			slog.Error("rate limiter: redis TTL failed", "key", key, "error", err)
+			slog.Error("rate limiter: redis TTL failed", "key", maskedKey, "error", err)
 			return false, 0, err
 		}
 		slog.Debug("rate limiter: limit reached",
-			"key", key,
+			"key", maskedKey,
 			"count", count,
 			"limit", r.policy.Limit,
 			"window", r.policy.Window,
@@ -66,7 +67,7 @@ func (r *RedisRateLimiter) Allow(key string) (bool, time.Duration, error) {
 		return false, timeRemaining, nil
 	}
 	slog.Debug("rate limiter: request allowed",
-		"key", key,
+		"key", maskedKey,
 		"count", count,
 		"limit", r.policy.Limit,
 		"window", r.policy.Window)
@@ -95,6 +96,7 @@ func NewInMemoryRateLimiter(clock Clock, policy RateLimitingPolicy) *InMemoryRat
 }
 
 func (r *InMemoryRateLimiter) Allow(key string) (allow bool, timeout time.Duration, err error) {
+	maskedKey := logging.MaskKey(key)
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	entry, exists := r.memory[key]
@@ -118,7 +120,7 @@ func (r *InMemoryRateLimiter) Allow(key string) (allow bool, timeout time.Durati
 			return true, 0, nil
 		}
 		slog.Debug("rate limiter: limit reached",
-			"key", key,
+			"key", maskedKey,
 			"count", entry.count,
 			"limit", r.policy.Limit,
 			"window", r.policy.Window,
@@ -126,7 +128,7 @@ func (r *InMemoryRateLimiter) Allow(key string) (allow bool, timeout time.Durati
 		return false, timeUntilExpiry, nil
 	}
 	slog.Debug("rate limiter: request allowed",
-		"key", key,
+		"key", maskedKey,
 		"count", entry.count,
 		"limit", r.policy.Limit,
 		"window", r.policy.Window)

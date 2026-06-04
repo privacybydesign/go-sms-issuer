@@ -69,3 +69,20 @@ func TestMaskPhone(t *testing.T) {
 		require.Equal(t, tt.expected, MaskPhone(tt.phone))
 	}
 }
+
+func TestMaskKey(t *testing.T) {
+	tests := []struct {
+		key      string
+		expected string
+	}{
+		{"sms:phone:+31612345678", "sms:phone:+31*******78"},
+		{"phone:+31612345678", "phone:+31*******78"},
+		{"sms:ip:1.2.3.4", "sms:ip:1.2.3.4"},
+		{"ip:1.2.3.4", "ip:1.2.3.4"},
+		{"", ""},
+	}
+
+	for _, tt := range tests {
+		require.Equal(t, tt.expected, MaskKey(tt.key))
+	}
+}
