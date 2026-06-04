@@ -87,6 +87,7 @@ TURNSTILE_SITE_KEY=
         "reference": ""
     },
     "storage_type": "redis",
+    "disable_ip_rate_limiting": false,
     "redis_config": {
         "host": "redis",
         "port": 6379,
@@ -109,3 +110,5 @@ TURNSTILE_SITE_KEY=
     }
 }
 ```
+
+`disable_ip_rate_limiting` is a feature flag that disables enforcement of IP based rate limiting (phone based rate limiting always stays active). When enabled, the IP limiter keeps running in shadow mode: every request still logs the caller's IP (`ip`, `remote_addr`, `x_real_ip` and `x_forwarded_for`) and a warning is logged whenever an IP *would* have been rate limited, so the effect of enforcement remains visible in the logs.
