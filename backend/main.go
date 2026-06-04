@@ -22,11 +22,11 @@ type Config struct {
 	// readConfigFile fail, so typos abort startup instead of silently
 	// running at info. When the key is absent the zero value is info.
 	LogLevel          slog.Level `json:"log_level"`
-	JwtPrivateKeyPath string `json:"jwt_private_key_path"`
-	IrmaServerUrl     string `json:"irma_server_url"`
-	IssuerId          string `json:"issuer_id"`
-	FullCredential    string `json:"full_credential"`
-	Attribute         string `json:"attribute"`
+	JwtPrivateKeyPath string     `json:"jwt_private_key_path"`
+	IrmaServerUrl     string     `json:"irma_server_url"`
+	IssuerId          string     `json:"issuer_id"`
+	FullCredential    string     `json:"full_credential"`
+	Attribute         string     `json:"attribute"`
 
 	SmsTemplates           map[string]string                `json:"sms_templates"`
 	SmsBackend             string                           `json:"sms_backend"`
