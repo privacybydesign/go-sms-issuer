@@ -151,7 +151,8 @@ type EmbeddedIssuance_SendSmsPayload struct {
 
 func handleEmbeddedIssuanceSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	endpoint := r.URL.Path
-	slog.Info("Received request", "endpoint", endpoint)
+	ip := getIpAddressForRequest(r)
+	logReceivedRequest(r, ip)
 
 	defer closeRequestBody(r)
 
@@ -169,8 +170,6 @@ func handleEmbeddedIssuanceSendSms(state *ServerState, w http.ResponseWriter, r 
 		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to parse json for body of send-sms request", err, "endpoint", endpoint)
 		return
 	}
-
-	ip := getIpAddressForRequest(r)
 
 	allow, timeout := state.sendSmsRateLimiter.Allow(ip, body.PhoneNumber)
 
@@ -223,7 +222,8 @@ type SendSmsPayload struct {
 
 func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	endpoint := r.URL.Path
-	slog.Info("Received request", "endpoint", endpoint)
+	ip := getIpAddressForRequest(r)
+	logReceivedRequest(r, ip)
 
 	defer closeRequestBody(r)
 
@@ -248,12 +248,10 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !state.turnstileVerifier.Verify(body.Captcha, getIpAddressForRequest(r)) {
+	if !state.turnstileVerifier.Verify(body.Captcha, ip) {
 		respondWithErr(w, http.StatusBadRequest, ErrorInvalidCaptcha, "invalid captcha", fmt.Errorf("captcha validation failed"), "endpoint", endpoint)
 		return
 	}
-
-	ip := getIpAddressForRequest(r)
 
 	allow, timeout := state.sendSmsRateLimiter.Allow(ip, body.PhoneNumber)
 
@@ -310,7 +308,8 @@ type VerifyResponse struct {
 
 func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	endpoint := r.URL.Path
-	slog.Info("Received request", "endpoint", endpoint)
+	ip := getIpAddressForRequest(r)
+	logReceivedRequest(r, ip)
 
 	defer closeRequestBody(r)
 
@@ -327,8 +326,6 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to parse body as json", err, "endpoint", endpoint)
 		return
 	}
-
-	ip := getIpAddressForRequest(r)
 
 	allow, timeout := state.verifyCodeRateLimiter.Allow(ip, body.PhoneNumber)
 
@@ -382,6 +379,15 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 }
 
 // -----------------------------------------------------------------------------------
+
+// logReceivedRequest logs an incoming request with enough context
+// (method, endpoint, client ip) to be useful for request tracing
+func logReceivedRequest(r *http.Request, ip string) {
+	slog.Info("received request",
+		"method", r.Method,
+		"endpoint", r.URL.Path,
+		"ip", ip)
+}
 
 func getIpAddressForRequest(r *http.Request) string {
 	ip := r.Header.Get("X-Real-IP")
