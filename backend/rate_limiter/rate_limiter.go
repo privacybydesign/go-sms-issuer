@@ -52,7 +52,9 @@ func (r *RedisRateLimiter) Allow(key string) (bool, time.Duration, error) {
 			return false, 0, err
 		}
 	}
-	if count >= int64(r.policy.Limit) {
+	// block once the limit is exceeded, so a limit of 5 allows exactly
+	// 5 requests per window (same semantics as InMemoryRateLimiter)
+	if count > int64(r.policy.Limit) {
 		timeRemaining, err := r.client.TTL(r.ctx, key).Result()
 		if err != nil {
 			slog.Error("rate limiter: redis TTL failed", "key", maskedKey, "error", err)

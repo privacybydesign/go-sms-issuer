@@ -12,6 +12,7 @@ require (
 
 require (
 	github.com/alexandrevicenzi/go-sse v1.6.0 // indirect
+	github.com/alicebob/miniredis/v2 v2.38.0 // indirect
 	github.com/bwesterb/byteswriter v1.0.0 // indirect
 	github.com/bwesterb/go-atum v1.1.5 // indirect
 	github.com/bwesterb/go-exptable v1.0.0 // indirect
@@ -71,6 +72,7 @@ require (
 	github.com/valyala/fastjson v1.6.4 // indirect
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/crypto v0.52.0 // indirect
