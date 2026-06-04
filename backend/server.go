@@ -430,7 +430,13 @@ func respondWithErr(w http.ResponseWriter, code int, responseBody string, logMsg
 		args = append(args, "error", e)
 	}
 	args = append(args, extras...)
-	slog.Error(logMsg, args...)
+	// client errors (4xx) are expected operational events; only server
+	// errors (5xx) should count towards the error-rate signal
+	if code >= 500 {
+		slog.Error(logMsg, args...)
+	} else {
+		slog.Warn(logMsg, args...)
+	}
 	w.WriteHeader(code)
 	if _, err := w.Write([]byte(responseBody)); err != nil {
 		slog.Error("failed to write body to http response", "error", err)
