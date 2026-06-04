@@ -5,10 +5,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	log "go-sms-issuer/logging"
+	"go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
 	redis "go-sms-issuer/redis"
 	turnstile "go-sms-issuer/turnstile"
+	"log/slog"
 	"os"
 	"time"
 )
@@ -16,11 +17,16 @@ import (
 type Config struct {
 	ServerConfig ServerConfig `json:"server_config"`
 
-	JwtPrivateKeyPath string `json:"jwt_private_key_path"`
-	IrmaServerUrl     string `json:"irma_server_url"`
-	IssuerId          string `json:"issuer_id"`
-	FullCredential    string `json:"full_credential"`
-	Attribute         string `json:"attribute"`
+	// LogLevel is deserialized by slog.Level itself: it accepts "debug",
+	// "info", "warn" and "error" (case-insensitive). An unknown value makes
+	// readConfigFile fail, so typos abort startup instead of silently
+	// running at info. When the key is absent the zero value is info.
+	LogLevel          slog.Level `json:"log_level"`
+	JwtPrivateKeyPath string     `json:"jwt_private_key_path"`
+	IrmaServerUrl     string     `json:"irma_server_url"`
+	IssuerId          string     `json:"issuer_id"`
+	FullCredential    string     `json:"full_credential"`
+	Attribute         string     `json:"attribute"`
 
 	SmsTemplates           map[string]string                `json:"sms_templates"`
 	SmsBackend             string                           `json:"sms_backend"`
@@ -37,17 +43,20 @@ func main() {
 	flag.Parse()
 
 	if *configPath == "" {
-		log.Error.Fatal("please provide a config path using the --config flag")
+		slog.Error("please provide a config path using the --config flag")
+		os.Exit(1)
 	}
-
-	log.Info.Printf("using config: %v", *configPath)
 
 	config, err := readConfigFile(*configPath)
 	if err != nil {
-		log.Error.Fatalf("failed to read config file: %v", err)
+		slog.Error("failed to read config file", "error", err)
+		os.Exit(1)
 	}
 
-	log.Info.Printf("hosting on: %v:%v", config.ServerConfig.Host, config.ServerConfig.Port)
+	logging.InitLogger(config.LogLevel)
+
+	slog.Info("using config", "path", *configPath)
+	slog.Info("hosting on", "host", config.ServerConfig.Host, "port", config.ServerConfig.Port)
 
 	jwtCreator, err := NewIrmaJwtCreator(
 		config.JwtPrivateKeyPath,
@@ -56,32 +65,38 @@ func main() {
 		config.Attribute,
 	)
 	if err != nil {
-		log.Error.Fatalf("failed to instantiate jwt creator: %v", err)
+		slog.Error("failed to instantiate jwt creator", "error", err)
+		os.Exit(1)
 	}
 
 	smsSender, err := createSmsBackend(&config)
 	if err != nil {
-		log.Error.Fatalf("failed to instantiate sms backend: %v", err)
+		slog.Error("failed to instantiate sms backend", "error", err)
+		os.Exit(1)
 	}
 
 	turnstileVerifier, err := createTurnstileValidator(&config)
 	if err != nil {
-		log.Error.Fatalf("failed to instantiate turnstile verifier: %v", err)
+		slog.Error("failed to instantiate turnstile verifier", "error", err)
+		os.Exit(1)
 	}
 
 	sendSmsRateLimiter, err := createSendSmsRateLimiter(&config)
 	if err != nil {
-		log.Error.Fatalf("failed to instantiate rate limiter for sending sms: %v", err)
+		slog.Error("failed to instantiate rate limiter for sending sms", "error", err)
+		os.Exit(1)
 	}
 
 	verifyCodeRateLimiter, err := createVerifyCodeRateLimiter(&config)
 	if err != nil {
-		log.Error.Fatalf("failed to instantiate rate limiter for verifying codes: %v", err)
+		slog.Error("failed to instantiate rate limiter for verifying codes", "error", err)
+		os.Exit(1)
 	}
 
 	tokenStorage, err := createTokenStorage(&config)
 	if err != nil {
-		log.Error.Fatalf("failed to instantiate token storage: %v", err)
+		slog.Error("failed to instantiate token storage", "error", err)
+		os.Exit(1)
 	}
 
 	serverState := ServerState{
@@ -98,18 +113,20 @@ func main() {
 
 	server, err := NewServer(&serverState, config.ServerConfig)
 	if err != nil {
-		log.Error.Fatalf("failed to create server: %v", err)
+		slog.Error("failed to create server", "error", err)
+		os.Exit(1)
 	}
 
 	err = server.ListenAndServe()
 	if err != nil {
-		log.Error.Fatalf("failed to listen and serve: %v", err)
+		slog.Error("failed to listen and serve", "error", err)
+		os.Exit(1)
 	}
 }
 
 func createTokenStorage(config *Config) (TokenStorage, error) {
 	if config.StorageType == "redis" {
-		log.Info.Printf("Using redis token storage")
+		slog.Info("Using redis token storage")
 		client, err := redis.NewRedisClient(&config.RedisConfig)
 		if err != nil {
 			return nil, err
@@ -117,7 +134,7 @@ func createTokenStorage(config *Config) (TokenStorage, error) {
 		return NewRedisTokenStorage(client, config.RedisConfig.Namespace), nil
 	}
 	if config.StorageType == "redis_sentinel" {
-		log.Info.Printf("Using redis sentinal storage")
+		slog.Info("Using redis sentinal storage")
 		client, err := redis.NewRedisSentinelClient(&config.RedisSentinelConfig)
 		if err != nil {
 			return nil, err
@@ -125,7 +142,7 @@ func createTokenStorage(config *Config) (TokenStorage, error) {
 		return NewRedisTokenStorage(client, config.RedisSentinelConfig.Namespace), nil
 	}
 	if config.StorageType == "memory" {
-		log.Info.Printf("Using in memory storage")
+		slog.Info("Using in memory storage")
 		return NewInMemoryTokenStorage(), nil
 	}
 	return nil, fmt.Errorf("%v is not a valid storage type", config.StorageType)
@@ -225,11 +242,11 @@ func createSmsBackend(config *Config) (SmsSender, error) {
 
 func createTurnstileValidator(config *Config) (turnstile.TurnStileVerifier, error) {
 	if config.TurnStileBackend == "dummy" {
-		log.Info.Println("using dummy turnstile validator")
+		slog.Info("using dummy turnstile validator")
 		return &turnstile.MockTurnStileValidator{Success: true}, nil
 	}
 	if config.TurnStileBackend == "turnstile" {
-		log.Info.Println("using cloudflare turnstile validator")
+		slog.Info("using cloudflare turnstile validator")
 		if config.TurnStileConfiguration.SecretKey == "" || config.TurnStileConfiguration.SiteKey == "" {
 			return nil, errors.New("turnstile secret key and site key must be set for turnstile backend")
 		}

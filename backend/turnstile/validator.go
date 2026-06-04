@@ -2,8 +2,8 @@ package turnstile
 
 import (
 	"encoding/json"
-	log "go-sms-issuer/logging"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 )
@@ -44,18 +44,18 @@ func (v *TurnStileValidator) Verify(token string, ip string) bool {
 
 	resp, err := http.PostForm(v.ApiUrl, values)
 	if err != nil {
-		log.Error.Printf("turnstile request failed: %v", err)
+		slog.Error("turnstile request failed", "error", err)
 		return false
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			log.Error.Printf("failed to close request body: %v", err)
+			slog.Error("failed to close response body", "error", err)
 		}
 	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Error.Printf("failed reading turnstile response: %v", err)
+		slog.Error("failed reading turnstile response", "error", err)
 		return false
 	}
 
@@ -63,7 +63,7 @@ func (v *TurnStileValidator) Verify(token string, ip string) bool {
 		Success bool `json:"success"`
 	}
 	if err := json.Unmarshal(body, &data); err != nil {
-		log.Error.Printf("failed parsing turnstile response: %v", err)
+		slog.Error("failed parsing turnstile response", "error", err)
 		return false
 	}
 
@@ -77,6 +77,6 @@ type MockTurnStileValidator struct {
 
 // Mock behavior
 func (m *MockTurnStileValidator) Verify(token string, ip string) bool {
-	log.Info.Printf("MockTurnStileValidator called with token: %s, ip: %s", token, ip)
+	slog.Info("MockTurnStileValidator called", "token", token, "ip", ip)
 	return m.Success
 }

@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"testing"
 	"time"
 
-	log "go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
 	turnstile "go-sms-issuer/turnstile"
 
@@ -332,6 +332,6 @@ func makeVerifyRequest(phone, token string) (*http.Response, error) {
 func stopServer(server *Server) {
 	err := server.Stop()
 	if err != nil {
-		log.Error.Printf("error shutting down server: %v", err)
+		slog.Error("error shutting down server", "error", err)
 	}
 }
