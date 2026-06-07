@@ -52,17 +52,50 @@ func TestRateLimitingVerifyCode(t *testing.T) {
 	_, err := makeSendSmsRequest(phone, "en", testCaptcha)
 	require.NoError(t, err)
 
-	// first 25 should fail but should not be limited
+	// The rate limiter check runs before token lookup, so all 25 attempts
+	// tick the counter regardless of whether the token is still around.
+	// After MaxFailedAttempts wrong submissions the token is invalidated,
+	// so the response transitions from 401 ("token incorrect") to 400
+	// ("no active token request") — but the rate limit cap is unchanged.
 	for i := 1; i <= 25; i++ {
 		resp, err := makeVerifyRequest(phone, "000000")
 		require.NoError(t, err)
-		require.Equal(t, resp.StatusCode, http.StatusUnauthorized, "failed at request %v", i)
+		if i <= MaxFailedAttempts {
+			require.Equal(t, http.StatusUnauthorized, resp.StatusCode, "failed at request %v", i)
+		} else {
+			require.Equal(t, http.StatusBadRequest, resp.StatusCode, "failed at request %v", i)
+		}
 	}
 
 	// 26th should be limited
 	resp, err := makeVerifyRequest(phone, "000000")
 	require.NoError(t, err)
-	require.Equal(t, resp.StatusCode, http.StatusTooManyRequests)
+	require.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+}
+
+func TestTokenInvalidatedAfterMaxFailedAttempts(t *testing.T) {
+	server := createAndStartTestServer(t, nil, true)
+	defer stopServer(server)
+
+	phone := "+31612345678"
+
+	resp, err := makeSendSmsRequest(phone, "en", testCaptcha)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// The first MaxFailedAttempts wrong submissions return 401.
+	for i := 1; i <= MaxFailedAttempts; i++ {
+		resp, err := makeVerifyRequest(phone, "000000")
+		require.NoError(t, err)
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode, "failed at request %v", i)
+	}
+
+	// After that the token is removed, so even the correct code can no
+	// longer verify against this /send and we get the "no active token"
+	// branch instead.
+	resp, err = makeVerifyRequest(phone, testToken)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
 func TestRateLimitingSingleClient(t *testing.T) {
