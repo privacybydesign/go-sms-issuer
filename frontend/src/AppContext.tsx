@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  ReactNode,
+} from "react";
 
 // Define the shape of the context state
 interface AppContextType {
@@ -35,7 +41,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   // Persist the phone number so it survives a page reload. The phone number is
   // not sensitive enough to warrant special handling, and sessionStorage is
   // cleared when the tab is closed, scoping it to the current session.
-  const setPhoneNumber = (value: string) => {
+  const setPhoneNumber = useCallback((value: string) => {
     setPhoneNumberState(value);
     try {
       if (value) {
@@ -46,7 +52,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     } catch {
       // Ignore storage errors (e.g. private mode); state still works in-memory.
     }
-  };
+  }, []);
 
   return (
     <AppContext.Provider value={{ phoneNumber, setPhoneNumber }}>
