@@ -67,7 +67,7 @@ func (tg *RandomTokenGenerator) GenerateToken() (string, error) {
 	// Fill remaining characters from full charset
 	const charset = letters + digits
 	for i := numDigits; i < length; i++ {
-		r, err := generateRandomNumber(len(digits))
+		r, err := generateRandomNumber(len(charset))
 		if err != nil {
 			return "", err
 		}

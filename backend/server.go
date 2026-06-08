@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"go-sms-issuer/logging"
@@ -341,7 +342,17 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if body.Token != expectedToken {
+	if subtle.ConstantTimeCompare([]byte(body.Token), []byte(expectedToken)) != 1 {
+		attempts, attemptsErr := state.tokenStorage.IncrementFailedAttempts(body.PhoneNumber)
+		if attemptsErr != nil {
+			slog.Error("failed to increment failed-verify counter", "error", attemptsErr, "phone", logging.MaskPhone(body.PhoneNumber))
+		} else if attempts >= MaxFailedAttempts {
+			// Too many wrong submissions for this token: drop it so the
+			// caller has to request a fresh one via /send.
+			if err := state.tokenStorage.RemoveToken(body.PhoneNumber); err != nil {
+				slog.Error("failed to invalidate token after max attempts", "error", err, "phone", logging.MaskPhone(body.PhoneNumber))
+			}
+		}
 		respondWithErr(w, http.StatusUnauthorized, ErrorCannotValidateToken, "token incorrect", nil, "endpoint", endpoint, "phone", logging.MaskPhone(body.PhoneNumber))
 		return
 	}
@@ -364,8 +375,8 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	_, err = w.Write(payload)
 	if err != nil {
 		slog.Error("failed to write body to http response", "error", err)
