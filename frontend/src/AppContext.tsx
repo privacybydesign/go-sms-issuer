@@ -14,9 +14,39 @@ interface AppProviderProps {
   children: ReactNode;
 }
 
+// Key used to persist the phone number across page reloads (e.g. when the user
+// refreshes the Cloudflare verification page).
+const PHONE_NUMBER_STORAGE_KEY = "phoneNumber";
+
+const readStoredPhoneNumber = (): string | undefined => {
+  try {
+    return sessionStorage.getItem(PHONE_NUMBER_STORAGE_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 // Provider component
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
-  const [phoneNumber, setPhoneNumber] = useState<string | undefined>();
+  const [phoneNumber, setPhoneNumberState] = useState<string | undefined>(
+    readStoredPhoneNumber
+  );
+
+  // Persist the phone number so it survives a page reload. The phone number is
+  // not sensitive enough to warrant special handling, and sessionStorage is
+  // cleared when the tab is closed, scoping it to the current session.
+  const setPhoneNumber = (value: string) => {
+    setPhoneNumberState(value);
+    try {
+      if (value) {
+        sessionStorage.setItem(PHONE_NUMBER_STORAGE_KEY, value);
+      } else {
+        sessionStorage.removeItem(PHONE_NUMBER_STORAGE_KEY);
+      }
+    } catch {
+      // Ignore storage errors (e.g. private mode); state still works in-memory.
+    }
+  };
 
   return (
     <AppContext.Provider value={{ phoneNumber, setPhoneNumber }}>
