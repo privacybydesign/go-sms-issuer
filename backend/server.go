@@ -172,45 +172,9 @@ func handleEmbeddedIssuanceSendSms(state *ServerState, w http.ResponseWriter, r 
 		return
 	}
 
-	allow, timeout := state.sendSmsRateLimiter.Allow(ip, body.PhoneNumber)
-
-	if !allow {
-		respondWithRateLimitErr(w, endpoint, ip, body.PhoneNumber, timeout)
-		return
-	}
-
-	token, err := state.tokenGenerator.GenerateToken()
-	if err != nil {
-		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to generate token", err, "endpoint", endpoint)
-		return
-	}
-
-	err = state.tokenStorage.StoreToken(body.PhoneNumber, token)
-
-	if err != nil {
-		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to store token", err, "endpoint", endpoint)
-		return
-	}
-
-	message, err := createSmsMessage(state.smsTemplates, token, body.Language)
-
-	if err != nil {
-		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to create sms", err, "endpoint", endpoint)
-		return
-	}
-
-	slog.Info("sending sms",
-		"endpoint", endpoint,
-		"phone", logging.MaskPhone(body.PhoneNumber),
-		"language", body.Language)
-	err = state.smsSender.SendSms(body.PhoneNumber, message)
-
-	if err != nil {
-		respondWithErr(w, http.StatusInternalServerError, ErrorSendingSms, "failed to send sms", err, "endpoint", endpoint)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
+	// the embedded path is captcha-free; the request comes from within the
+	// trusted Yivi app rather than the public web frontend
+	sendSms(state, w, endpoint, ip, body.PhoneNumber, body.Language)
 }
 
 // -----------------------------------------------------------------------------------
@@ -254,10 +218,19 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	allow, timeout := state.sendSmsRateLimiter.Allow(ip, body.PhoneNumber)
+	sendSms(state, w, endpoint, ip, body.PhoneNumber, body.Language)
+}
+
+// sendSms runs the shared post-captcha pipeline: rate-limit the caller,
+// generate and store a fresh token, build the localized message, send it,
+// and respond 200 on success. Any failure writes the appropriate error
+// response and returns. The captcha check (if any) is the caller's
+// responsibility before invoking this helper.
+func sendSms(state *ServerState, w http.ResponseWriter, endpoint, ip, phone, language string) {
+	allow, timeout := state.sendSmsRateLimiter.Allow(ip, phone)
 
 	if !allow {
-		respondWithRateLimitErr(w, endpoint, ip, body.PhoneNumber, timeout)
+		respondWithRateLimitErr(w, endpoint, ip, phone, timeout)
 		return
 	}
 
@@ -267,14 +240,14 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = state.tokenStorage.StoreToken(body.PhoneNumber, token)
+	err = state.tokenStorage.StoreToken(phone, token)
 
 	if err != nil {
 		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to store token", err, "endpoint", endpoint)
 		return
 	}
 
-	message, err := createSmsMessage(state.smsTemplates, token, body.Language)
+	message, err := createSmsMessage(state.smsTemplates, token, language)
 
 	if err != nil {
 		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to create sms", err, "endpoint", endpoint)
@@ -283,9 +256,9 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("sending sms",
 		"endpoint", endpoint,
-		"phone", logging.MaskPhone(body.PhoneNumber),
-		"language", body.Language)
-	err = state.smsSender.SendSms(body.PhoneNumber, message)
+		"phone", logging.MaskPhone(phone),
+		"language", language)
+	err = state.smsSender.SendSms(phone, message)
 
 	if err != nil {
 		respondWithErr(w, http.StatusInternalServerError, ErrorSendingSms, "failed to send sms", err, "endpoint", endpoint)
