@@ -94,11 +94,6 @@ func (s *CmSmsSender) SendSms(phone, message string) error {
 		return fmt.Errorf("error response received from: %s", text)
 	}
 
-	err = resp.Body.Close()
-	if err != nil {
-		slog.Error("error while closing response body", "error", err)
-	}
-
 	return nil
 }
 
