@@ -365,12 +365,17 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 // -----------------------------------------------------------------------------------
 
 // logReceivedRequest logs an incoming request with enough context
-// (method, endpoint, client ip) to be useful for request tracing
+// (method, endpoint, client ip) to be useful for request tracing.
+// It also includes the raw remote address and proxy headers so we can
+// see how kubernetes internal routing presents client ips to the pod.
 func logReceivedRequest(r *http.Request, ip string) {
 	slog.Info("received request",
 		"method", r.Method,
 		"endpoint", r.URL.Path,
-		"ip", ip)
+		"ip", ip,
+		"remote_addr", r.RemoteAddr,
+		"x_real_ip", r.Header.Get("X-Real-IP"),
+		"x_forwarded_for", r.Header.Get("X-Forwarded-For"))
 }
 
 func getIpAddressForRequest(r *http.Request) string {

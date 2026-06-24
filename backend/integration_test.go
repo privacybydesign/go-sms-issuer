@@ -297,10 +297,12 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileS
 		sendSmsRateLimiter: rate.NewTotalRateLimiter(
 			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), sendSmsIpRateLimitingPolicy),
 			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), sendSmsPhoneRateLimitPolicy),
+			false,
 		),
 		verifyCodeRateLimiter: rate.NewTotalRateLimiter(
 			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), verifyCodeIpRateLimitingPolicy),
 			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), verifyCodePhoneRateLimitPolicy),
+			false,
 		),
 		turnstileVerifier: turnstileVerifier,
 	}

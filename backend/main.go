@@ -28,6 +28,11 @@ type Config struct {
 	FullCredential    string     `json:"full_credential"`
 	Attribute         string     `json:"attribute"`
 
+	// feature flag: when true, ip based rate limiting is not enforced.
+	// the ip limiter keeps running in shadow mode so logs still show which
+	// ips are calling the system and when they would have been limited.
+	DisableIpRateLimiting bool `json:"disable_ip_rate_limiting,omitempty"`
+
 	SmsTemplates           map[string]string                `json:"sms_templates"`
 	SmsBackend             string                           `json:"sms_backend"`
 	CmSmsSenderConfig      CmSmsSenderConfig                `json:"cm_sms_sender_config"`
@@ -57,6 +62,10 @@ func main() {
 
 	slog.Info("using config", "path", *configPath)
 	slog.Info("hosting on", "host", config.ServerConfig.Host, "port", config.ServerConfig.Port)
+
+	if config.DisableIpRateLimiting {
+		slog.Warn("ip based rate limiting is DISABLED via config; ip usage is still tracked and logged in shadow mode")
+	}
 
 	jwtCreator, err := NewIrmaJwtCreator(
 		config.JwtPrivateKeyPath,
@@ -167,6 +176,7 @@ func createSendSmsRateLimiter(config *Config) (*rate.TotalRateLimiter, error) {
 		return rate.NewTotalRateLimiter(
 			rate.NewRedisRateLimiter(client, redisNamespace, ipRateLimitingPolicy),
 			rate.NewRedisRateLimiter(client, redisNamespace, phoneRateLimitingPolicy),
+			config.DisableIpRateLimiting,
 		), nil
 	}
 	if config.StorageType == "redis_sentinel" {
@@ -178,12 +188,14 @@ func createSendSmsRateLimiter(config *Config) (*rate.TotalRateLimiter, error) {
 		return rate.NewTotalRateLimiter(
 			rate.NewRedisRateLimiter(client, redisNamespace, ipRateLimitingPolicy),
 			rate.NewRedisRateLimiter(client, redisNamespace, phoneRateLimitingPolicy),
+			config.DisableIpRateLimiting,
 		), nil
 	}
 	if config.StorageType == "memory" {
 		return rate.NewTotalRateLimiter(
 			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), ipRateLimitingPolicy),
 			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), phoneRateLimitingPolicy),
+			config.DisableIpRateLimiting,
 		), nil
 	}
 	return nil, errors.New("no valid storage type was set")
@@ -208,6 +220,7 @@ func createVerifyCodeRateLimiter(config *Config) (*rate.TotalRateLimiter, error)
 		return rate.NewTotalRateLimiter(
 			rate.NewRedisRateLimiter(client, redisNamespace, ipRateLimitingPolicy),
 			rate.NewRedisRateLimiter(client, redisNamespace, phoneRateLimitingPolicy),
+			config.DisableIpRateLimiting,
 		), nil
 	}
 	if config.StorageType == "redis_sentinel" {
@@ -219,12 +232,14 @@ func createVerifyCodeRateLimiter(config *Config) (*rate.TotalRateLimiter, error)
 		return rate.NewTotalRateLimiter(
 			rate.NewRedisRateLimiter(client, redisNamespace, ipRateLimitingPolicy),
 			rate.NewRedisRateLimiter(client, redisNamespace, phoneRateLimitingPolicy),
+			config.DisableIpRateLimiting,
 		), nil
 	}
 	if config.StorageType == "memory" {
 		return rate.NewTotalRateLimiter(
 			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), ipRateLimitingPolicy),
 			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), phoneRateLimitingPolicy),
+			config.DisableIpRateLimiting,
 		), nil
 	}
 	return nil, errors.New("no valid storage type was set")
