@@ -15,10 +15,27 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 )
+
+// maxRequestBodyBytes caps the number of bytes read from any request body.
+// The JSON payloads we accept are tiny (a phone number, a language code and
+// optionally a captcha token), so 4 KiB is a generous ceiling that still
+// protects against a client streaming an unbounded body to exhaust memory.
+const maxRequestBodyBytes = 4096
+
+// e164Pattern matches an E.164 phone number: a leading '+', a non-zero first
+// digit and up to 15 digits in total. https://en.wikipedia.org/wiki/E.164
+var e164Pattern = regexp.MustCompile(`^\+[1-9]\d{1,14}$`)
+
+// isValidE164 reports whether phone is a syntactically valid E.164 number.
+func isValidE164(phone string) bool {
+	return e164Pattern.MatchString(phone)
+}
 
 // same error message bodies as the old Java code
 const ErrorPhoneNumberFormat = "error:phone-number-format"
@@ -28,6 +45,7 @@ const ErrorAddressMalformed = "error:address-malformed"
 const ErrorInternal = "error:internal"
 const ErrorSendingSms = "error:sending-sms"
 const ErrorInvalidCaptcha = "error:invalid-captcha"
+const ErrorUnauthorized = "error:unauthorized"
 
 type ServerConfig struct {
 	Host           string `json:"host"`
@@ -47,6 +65,15 @@ type ServerState struct {
 	sendSmsRateLimiter    *rate.TotalRateLimiter
 	verifyCodeRateLimiter *rate.TotalRateLimiter
 	turnstileVerifier     turnstile.TurnStileVerifier
+	// embeddedAuthToken is the shared secret that callers of the
+	// captcha-free /api/embedded/send endpoint must present as a bearer
+	// token. It must be non-empty; the server fails to start otherwise.
+	embeddedAuthToken string
+	// trustedProxies lists the CIDR ranges of reverse proxies we trust to
+	// set the X-Real-IP header. X-Real-IP is only honoured when the direct
+	// peer (RemoteAddr) falls within one of these ranges; otherwise the
+	// peer address is used, so a client cannot spoof its rate-limit key.
+	trustedProxies []*net.IPNet
 }
 
 type SpaHandler struct {
@@ -152,11 +179,19 @@ type EmbeddedIssuance_SendSmsPayload struct {
 
 func handleEmbeddedIssuanceSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	endpoint := r.URL.Path
-	ip := getIpAddressForRequest(r)
+	ip := getIpAddressForRequest(r, state.trustedProxies)
 	logReceivedRequest(r, ip)
 
 	defer closeRequestBody(r)
 
+	// This endpoint bypasses the captcha, so it must be authenticated:
+	// only callers holding the shared secret (the Yivi app) may reach it.
+	if !hasValidEmbeddedAuth(r, state.embeddedAuthToken) {
+		respondWithErr(w, http.StatusUnauthorized, ErrorUnauthorized, "missing or invalid authorization for embedded send", nil, "endpoint", endpoint, "ip", ip)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	bodyContent, err := io.ReadAll(r.Body)
 
 	if err != nil {
@@ -187,11 +222,12 @@ type SendSmsPayload struct {
 
 func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	endpoint := r.URL.Path
-	ip := getIpAddressForRequest(r)
+	ip := getIpAddressForRequest(r, state.trustedProxies)
 	logReceivedRequest(r, ip)
 
 	defer closeRequestBody(r)
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	bodyContent, err := io.ReadAll(r.Body)
 
 	if err != nil {
@@ -227,6 +263,13 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 // response and returns. The captcha check (if any) is the caller's
 // responsibility before invoking this helper.
 func sendSms(state *ServerState, w http.ResponseWriter, endpoint, ip, phone, language string) {
+	// Reject malformed phone numbers before touching rate limiters or the
+	// SMS backend, so we never attempt to send to a non-E.164 address.
+	if !isValidE164(phone) {
+		respondWithErr(w, http.StatusBadRequest, ErrorPhoneNumberFormat, "phone number is not valid E.164", nil, "endpoint", endpoint, "phone", logging.MaskPhone(phone))
+		return
+	}
+
 	allow, timeout := state.sendSmsRateLimiter.Allow(ip, phone)
 
 	if !allow {
@@ -282,11 +325,12 @@ type VerifyResponse struct {
 
 func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	endpoint := r.URL.Path
-	ip := getIpAddressForRequest(r)
+	ip := getIpAddressForRequest(r, state.trustedProxies)
 	logReceivedRequest(r, ip)
 
 	defer closeRequestBody(r)
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	bodyContent, err := io.ReadAll(r.Body)
 
 	if err != nil {
@@ -373,12 +417,57 @@ func logReceivedRequest(r *http.Request, ip string) {
 		"ip", ip)
 }
 
-func getIpAddressForRequest(r *http.Request) string {
-	ip := r.Header.Get("X-Real-IP")
-	if ip == "" {
-		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
+// getIpAddressForRequest resolves the client IP used for rate limiting.
+//
+// The X-Real-IP header is client-controlled and can be spoofed to evade the
+// per-IP rate limit, so it is only trusted when the request's direct peer
+// (RemoteAddr) is one of the configured trusted proxies. In every other case
+// the peer address is used, which cannot be forged over TCP.
+func getIpAddressForRequest(r *http.Request, trustedProxies []*net.IPNet) string {
+	remoteIP, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		// RemoteAddr had no port (unusual); fall back to the raw value.
+		remoteIP = r.RemoteAddr
 	}
-	return ip
+
+	if isTrustedProxy(remoteIP, trustedProxies) {
+		if realIP := strings.TrimSpace(r.Header.Get("X-Real-IP")); realIP != "" {
+			return realIP
+		}
+	}
+
+	return remoteIP
+}
+
+// isTrustedProxy reports whether ip falls within any of the trusted-proxy
+// CIDR ranges.
+func isTrustedProxy(ip string, trustedProxies []*net.IPNet) bool {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return false
+	}
+	for _, cidr := range trustedProxies {
+		if cidr != nil && cidr.Contains(parsed) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasValidEmbeddedAuth checks the request's Authorization header against the
+// configured shared secret using a constant-time comparison. An empty
+// configured token is treated as "deny all" (fail closed).
+func hasValidEmbeddedAuth(r *http.Request, expectedToken string) bool {
+	if expectedToken == "" {
+		return false
+	}
+	const prefix = "Bearer "
+	header := r.Header.Get("Authorization")
+	if !strings.HasPrefix(header, prefix) {
+		return false
+	}
+	presented := strings.TrimSpace(header[len(prefix):])
+	return subtle.ConstantTimeCompare([]byte(presented), []byte(expectedToken)) == 1
 }
 
 func createSmsMessage(templates map[string]string, token, language string) (string, error) {

@@ -311,6 +311,41 @@ func TestRedisRateLimiterRedisFailure(t *testing.T) {
 	}
 }
 
+// TestDeniedIpDoesNotConsumePhoneQuota verifies the short-circuit: once an IP
+// is rate limited, the request is denied without touching the per-phone
+// counter, so a blocked IP can't burn a victim phone's quota.
+func TestDeniedIpDoesNotConsumePhoneQuota(t *testing.T) {
+	clock := &mockClock{time: time.Now()}
+	ip := NewInMemoryRateLimiter(clock, RateLimitingPolicy{Window: 30 * time.Minute, Limit: 1})
+	phone := NewInMemoryRateLimiter(clock, RateLimitingPolicy{Window: 30 * time.Minute, Limit: 2})
+	rl := NewTotalRateLimiter(ip, phone)
+
+	const victimPhone = "+31612345678"
+
+	// first request from ip1 is allowed: ip1=1, phone=1
+	if allow, _ := rl.Allow("1.1.1.1", victimPhone); !allow {
+		t.Fatalf("first request should be allowed")
+	}
+
+	// second request from ip1 is denied by the IP limit; the phone counter
+	// must NOT be incremented here.
+	if allow, _ := rl.Allow("1.1.1.1", victimPhone); allow {
+		t.Fatalf("second request from same ip should be denied")
+	}
+
+	// a fresh ip re-using the same phone should still be allowed, proving the
+	// phone counter is only at 2 (not 3) after the denied request above.
+	if allow, _ := rl.Allow("2.2.2.2", victimPhone); !allow {
+		t.Fatalf("phone quota was consumed by a denied IP request")
+	}
+
+	// now the phone counter is exhausted (2/2), so the next fresh ip is
+	// denied by the phone limit.
+	if allow, _ := rl.Allow("3.3.3.3", victimPhone); allow {
+		t.Fatalf("phone limit should now be reached")
+	}
+}
+
 func newTestRedisRateLimiter(t *testing.T, policy RateLimitingPolicy) (*RedisRateLimiter, *miniredis.Miniredis) {
 	t.Helper()
 	mr := miniredis.RunT(t)

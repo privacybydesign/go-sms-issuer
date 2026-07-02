@@ -10,7 +10,9 @@ import (
 	redis "go-sms-issuer/redis"
 	turnstile "go-sms-issuer/turnstile"
 	"log/slog"
+	"net"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -36,6 +38,16 @@ type Config struct {
 	RedisSentinelConfig    redis.RedisSentinelConfig        `json:"redis_sentinel_config"`
 	TurnStileBackend       string                           `json:"turnstile_backend,omitempty"`
 	TurnStileConfiguration turnstile.TurnStileConfiguration `json:"turnstile_configuration"`
+
+	// EmbeddedAuthToken is the shared secret required to call the
+	// captcha-free /api/embedded/send endpoint. It must be set; startup
+	// fails otherwise, so the endpoint is never left unauthenticated.
+	EmbeddedAuthToken string `json:"embedded_auth_token"`
+
+	// TrustedProxies lists CIDR ranges of reverse proxies allowed to set the
+	// X-Real-IP header. When empty, X-Real-IP is never trusted and the
+	// direct peer address is always used for rate limiting.
+	TrustedProxies []string `json:"trusted_proxies"`
 }
 
 func main() {
@@ -99,6 +111,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	if config.EmbeddedAuthToken == "" {
+		slog.Error("embedded_auth_token must be set: the captcha-free /api/embedded/send endpoint refuses to run unauthenticated")
+		os.Exit(1)
+	}
+
+	trustedProxies, err := parseTrustedProxies(config.TrustedProxies)
+	if err != nil {
+		slog.Error("failed to parse trusted_proxies", "error", err)
+		os.Exit(1)
+	}
+
 	serverState := ServerState{
 		irmaServerURL:         config.IrmaServerUrl,
 		tokenStorage:          tokenStorage,
@@ -109,6 +132,8 @@ func main() {
 		sendSmsRateLimiter:    sendSmsRateLimiter,
 		verifyCodeRateLimiter: verifyCodeRateLimiter,
 		turnstileVerifier:     turnstileVerifier,
+		embeddedAuthToken:     config.EmbeddedAuthToken,
+		trustedProxies:        trustedProxies,
 	}
 
 	server, err := NewServer(&serverState, config.ServerConfig)
@@ -256,6 +281,34 @@ func createTurnstileValidator(config *Config) (turnstile.TurnStileVerifier, erro
 		return turnstile.NewTurnStileValidator(config.TurnStileConfiguration), nil
 	}
 	return nil, fmt.Errorf("invalid turnstile backend")
+}
+
+// parseTrustedProxies parses a list of CIDR strings into IP networks. A bare
+// IP address (without a mask) is accepted and treated as a single-host range.
+func parseTrustedProxies(cidrs []string) ([]*net.IPNet, error) {
+	nets := make([]*net.IPNet, 0, len(cidrs))
+	for _, raw := range cidrs {
+		entry := strings.TrimSpace(raw)
+		if entry == "" {
+			continue
+		}
+		if !strings.Contains(entry, "/") {
+			// allow a plain IP by turning it into a /32 or /128 range
+			if ip := net.ParseIP(entry); ip != nil {
+				if ip.To4() != nil {
+					entry += "/32"
+				} else {
+					entry += "/128"
+				}
+			}
+		}
+		_, network, err := net.ParseCIDR(entry)
+		if err != nil {
+			return nil, fmt.Errorf("invalid trusted proxy CIDR %q: %w", raw, err)
+		}
+		nets = append(nets, network)
+	}
+	return nets, nil
 }
 
 func readConfigFile(path string) (Config, error) {

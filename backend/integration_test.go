@@ -18,6 +18,7 @@ import (
 // for testing purposes it's useful to have a static token
 const testToken = "123456"
 const testCaptcha = "test-captcha"
+const testEmbeddedAuthToken = "test-embedded-secret"
 
 func TestEmptyCaptcha(t *testing.T) {
 	server := createAndStartTestServer(t, nil, true)
@@ -303,6 +304,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileS
 			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), verifyCodePhoneRateLimitPolicy),
 		),
 		turnstileVerifier: turnstileVerifier,
+		embeddedAuthToken: testEmbeddedAuthToken,
 	}
 
 	config := ServerConfig{
