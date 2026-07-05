@@ -40,6 +40,7 @@ func TestEmbeddedSendRejectsMissingAuth(t *testing.T) {
 
 	resp, err := makeEmbeddedSendRequest("+31612345678", "en", "")
 	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
@@ -49,6 +50,7 @@ func TestEmbeddedSendRejectsWrongAuth(t *testing.T) {
 
 	resp, err := makeEmbeddedSendRequest("+31612345678", "en", "not-the-secret")
 	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
@@ -59,6 +61,7 @@ func TestEmbeddedSendAcceptsValidAuth(t *testing.T) {
 
 	resp, err := makeEmbeddedSendRequest("+31612345678", "en", testEmbeddedAuthToken)
 	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	sms := <-smsReceiver
@@ -104,6 +107,7 @@ func TestSendBodyTooLargeIsRejected(t *testing.T) {
 
 	resp, err := http.Post("http://localhost:8081/send", "application/json", bytes.NewBuffer(body))
 	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
