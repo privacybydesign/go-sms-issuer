@@ -72,7 +72,7 @@ type ServerState struct {
 	// trustedProxies lists the CIDR ranges of reverse proxies we trust to
 	// set the X-Real-IP header. X-Real-IP is only honoured when the direct
 	// peer (RemoteAddr) falls within one of these ranges; otherwise the
-	// peer address is used, so a client cannot spoof its rate-limit key.
+	// peer address is used.
 	trustedProxies []*net.IPNet
 }
 
@@ -184,8 +184,8 @@ func handleEmbeddedIssuanceSendSms(state *ServerState, w http.ResponseWriter, r 
 
 	defer closeRequestBody(r)
 
-	// This endpoint bypasses the captcha, so it must be authenticated:
-	// only callers holding the shared secret (the Yivi app) may reach it.
+	// Require the shared secret before processing this endpoint; only
+	// callers holding the configured token (the Yivi app) may reach it.
 	if !hasValidEmbeddedAuth(r, state.embeddedAuthToken) {
 		respondWithErr(w, http.StatusUnauthorized, ErrorUnauthorized, "missing or invalid authorization for embedded send", nil, "endpoint", endpoint, "ip", ip)
 		return
@@ -419,10 +419,9 @@ func logReceivedRequest(r *http.Request, ip string) {
 
 // getIpAddressForRequest resolves the client IP used for rate limiting.
 //
-// The X-Real-IP header is client-controlled and can be spoofed to evade the
-// per-IP rate limit, so it is only trusted when the request's direct peer
-// (RemoteAddr) is one of the configured trusted proxies. In every other case
-// the peer address is used, which cannot be forged over TCP.
+// The X-Real-IP header is client-controlled, so it is only trusted when the
+// request's direct peer (RemoteAddr) is one of the configured trusted
+// proxies. In every other case the peer address is used.
 func getIpAddressForRequest(r *http.Request, trustedProxies []*net.IPNet) string {
 	remoteIP, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {

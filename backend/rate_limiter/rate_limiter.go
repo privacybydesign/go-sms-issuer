@@ -153,10 +153,9 @@ func (l *TotalRateLimiter) Allow(ip, phone string) (allow bool, timeoutRemaining
 	phoneKey := fmt.Sprintf("phone:%s", phone)
 	maskedPhone := logging.MaskPhone(phone)
 
-	// Check the IP limit first and short-circuit on denial. This keeps a
-	// blocked IP from also consuming the phone quota, which an attacker
-	// could otherwise abuse to lock a victim's phone number out by burning
-	// its per-phone budget from an already rate-limited IP.
+	// Check the IP limit first and short-circuit on denial, so a request
+	// that is already denied at the IP level does not also consume the
+	// per-phone quota.
 	allowIp, timeRemainingIp, err := l.ip.Allow(ipKey)
 	if err != nil {
 		slog.Error("rate limiter: ip check failed, denying request",
