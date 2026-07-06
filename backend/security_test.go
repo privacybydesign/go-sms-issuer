@@ -85,6 +85,9 @@ func TestSendBodyTooLargeIsRejected(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	respBody, err := readCompleteBodyToString(resp)
+	require.NoError(t, err)
+	require.Equal(t, ErrorBadRequest, respBody)
 }
 
 // ---- unit tests for the IP resolution and E.164 helpers ----

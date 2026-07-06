@@ -43,6 +43,7 @@ const ErrorRateLimit = "error:ratelimit"
 const ErrorCannotValidateToken = "error:cannot-validate-token"
 const ErrorAddressMalformed = "error:address-malformed"
 const ErrorInternal = "error:internal"
+const ErrorBadRequest = "error:bad-request"
 const ErrorSendingSms = "error:sending-sms"
 const ErrorInvalidCaptcha = "error:invalid-captcha"
 
@@ -183,7 +184,7 @@ func handleEmbeddedIssuanceSendSms(state *ServerState, w http.ResponseWriter, r 
 	bodyContent, err := io.ReadAll(r.Body)
 
 	if err != nil {
-		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to read body of send-sms request", err, "endpoint", endpoint)
+		respondWithErr(w, http.StatusBadRequest, ErrorBadRequest, "failed to read body of send-sms request", err, "endpoint", endpoint)
 		return
 	}
 
@@ -219,7 +220,7 @@ func handleSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	bodyContent, err := io.ReadAll(r.Body)
 
 	if err != nil {
-		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to read body of send-sms request", err, "endpoint", endpoint)
+		respondWithErr(w, http.StatusBadRequest, ErrorBadRequest, "failed to read body of send-sms request", err, "endpoint", endpoint)
 		return
 	}
 
@@ -322,7 +323,7 @@ func handleVerify(state *ServerState, w http.ResponseWriter, r *http.Request) {
 	bodyContent, err := io.ReadAll(r.Body)
 
 	if err != nil {
-		respondWithErr(w, http.StatusBadRequest, ErrorInternal, "failed to read body of verify request", err, "endpoint", endpoint)
+		respondWithErr(w, http.StatusBadRequest, ErrorBadRequest, "failed to read body of verify request", err, "endpoint", endpoint)
 		return
 	}
 
