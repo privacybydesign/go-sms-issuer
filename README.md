@@ -106,6 +106,13 @@ TURNSTILE_SITE_KEY=
         "secret_key": "",
         "site_key": "",
         "api_url": "https://challenges.cloudflare.com/turnstile/v0/siteverify"
-    }
+    },
+    "trusted_proxies": ["10.0.0.0/8"]
 }
 ```
+
+`trusted_proxies` is an optional list of CIDR ranges (or bare IPs) of reverse
+proxies allowed to set the `X-Real-IP` header used for rate limiting. When a
+request's direct peer is not in one of these ranges the header is ignored and
+the peer address is used, so a client cannot spoof its rate-limit key. Leave it
+empty (or omit it) when the service is exposed directly without a proxy.
