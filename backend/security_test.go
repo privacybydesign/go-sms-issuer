@@ -12,9 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// makeEmbeddedSendRequest posts to the captcha-free embedded endpoint with the
-// given bearer token in the Authorization header (omitted when empty).
-func makeEmbeddedSendRequest(phone, language, authToken string) (*http.Response, error) {
+// makeEmbeddedSendRequest posts to the captcha-free embedded endpoint.
+func makeEmbeddedSendRequest(phone, language string) (*http.Response, error) {
 	payload := EmbeddedIssuance_SendSmsPayload{
 		PhoneNumber: phone,
 		Language:    language,
@@ -28,38 +27,15 @@ func makeEmbeddedSendRequest(phone, language, authToken string) (*http.Response,
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if authToken != "" {
-		req.Header.Set("Authorization", "Bearer "+authToken)
-	}
 	return http.DefaultClient.Do(req)
 }
 
-func TestEmbeddedSendRejectsMissingAuth(t *testing.T) {
-	server := createAndStartTestServer(t, nil, true)
-	defer stopServer(server)
-
-	resp, err := makeEmbeddedSendRequest("+31612345678", "en", "")
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestEmbeddedSendRejectsWrongAuth(t *testing.T) {
-	server := createAndStartTestServer(t, nil, true)
-	defer stopServer(server)
-
-	resp, err := makeEmbeddedSendRequest("+31612345678", "en", "not-the-secret")
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestEmbeddedSendAcceptsValidAuth(t *testing.T) {
+func TestEmbeddedSendSucceeds(t *testing.T) {
 	smsReceiver := make(chan smsMessage, 1)
 	server := createAndStartTestServer(t, &smsReceiver, true)
 	defer stopServer(server)
 
-	resp, err := makeEmbeddedSendRequest("+31612345678", "en", testEmbeddedAuthToken)
+	resp, err := makeEmbeddedSendRequest("+31612345678", "en")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -68,11 +44,11 @@ func TestEmbeddedSendAcceptsValidAuth(t *testing.T) {
 	require.Contains(t, sms.message, testToken)
 }
 
-func TestEmbeddedSendRejectsInvalidPhoneWithValidAuth(t *testing.T) {
+func TestEmbeddedSendRejectsInvalidPhone(t *testing.T) {
 	server := createAndStartTestServer(t, nil, true)
 	defer stopServer(server)
 
-	resp, err := makeEmbeddedSendRequest("0612345678", "en", testEmbeddedAuthToken)
+	resp, err := makeEmbeddedSendRequest("0612345678", "en")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	body, err := readCompleteBodyToString(resp)
@@ -154,23 +130,6 @@ func TestGetIpUntrustedPeerWithProxyConfiguredIgnoresHeader(t *testing.T) {
 	// peer is not in the trusted range -> spoofed header is ignored
 	trusted := mustCIDRs(t, "10.0.0.0/8")
 	require.Equal(t, "203.0.113.9", getIpAddressForRequest(r, trusted))
-}
-
-func TestHasValidEmbeddedAuth(t *testing.T) {
-	newReq := func(header string) *http.Request {
-		r := httptest.NewRequest(http.MethodPost, "/api/embedded/send", nil)
-		if header != "" {
-			r.Header.Set("Authorization", header)
-		}
-		return r
-	}
-
-	require.True(t, hasValidEmbeddedAuth(newReq("Bearer secret"), "secret"))
-	require.False(t, hasValidEmbeddedAuth(newReq("Bearer wrong"), "secret"))
-	require.False(t, hasValidEmbeddedAuth(newReq("secret"), "secret"), "missing Bearer prefix")
-	require.False(t, hasValidEmbeddedAuth(newReq(""), "secret"), "missing header")
-	// fail closed: an unconfigured token rejects everything
-	require.False(t, hasValidEmbeddedAuth(newReq("Bearer secret"), ""))
 }
 
 func TestIsValidE164(t *testing.T) {

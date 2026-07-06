@@ -107,15 +107,9 @@ TURNSTILE_SITE_KEY=
         "site_key": "",
         "api_url": "https://challenges.cloudflare.com/turnstile/v0/siteverify"
     },
-    "embedded_auth_token": "a-long-random-shared-secret",
     "trusted_proxies": ["10.0.0.0/8"]
 }
 ```
-
-`embedded_auth_token` is **required**: the `/api/embedded/send` endpoint bypasses
-the captcha, so callers (the Yivi app) must present it as an
-`Authorization: Bearer <token>` header. The server refuses to start when the
-token is unset.
 
 `trusted_proxies` is an optional list of CIDR ranges (or bare IPs) of reverse
 proxies allowed to set the `X-Real-IP` header used for rate limiting. When a

@@ -39,11 +39,6 @@ type Config struct {
 	TurnStileBackend       string                           `json:"turnstile_backend,omitempty"`
 	TurnStileConfiguration turnstile.TurnStileConfiguration `json:"turnstile_configuration"`
 
-	// EmbeddedAuthToken is the shared secret required to call the
-	// captcha-free /api/embedded/send endpoint. It must be set; startup
-	// fails otherwise, so the endpoint is never left unauthenticated.
-	EmbeddedAuthToken string `json:"embedded_auth_token"`
-
 	// TrustedProxies lists CIDR ranges of reverse proxies allowed to set the
 	// X-Real-IP header. When empty, X-Real-IP is never trusted and the
 	// direct peer address is always used for rate limiting.
@@ -111,11 +106,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	if config.EmbeddedAuthToken == "" {
-		slog.Error("embedded_auth_token must be set: the captcha-free /api/embedded/send endpoint refuses to run unauthenticated")
-		os.Exit(1)
-	}
-
 	trustedProxies, err := parseTrustedProxies(config.TrustedProxies)
 	if err != nil {
 		slog.Error("failed to parse trusted_proxies", "error", err)
@@ -132,7 +122,6 @@ func main() {
 		sendSmsRateLimiter:    sendSmsRateLimiter,
 		verifyCodeRateLimiter: verifyCodeRateLimiter,
 		turnstileVerifier:     turnstileVerifier,
-		embeddedAuthToken:     config.EmbeddedAuthToken,
 		trustedProxies:        trustedProxies,
 	}
 
