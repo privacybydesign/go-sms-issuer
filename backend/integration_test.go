@@ -284,6 +284,7 @@ func fetchPowChallenge(t *testing.T) pow.Challenge {
 	t.Helper()
 	resp, err := http.Get("http://localhost:8081/api/embedded/pow-challenge")
 	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	body, err := readCompleteBodyToString(resp)
 	require.NoError(t, err)
