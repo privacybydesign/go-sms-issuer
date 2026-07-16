@@ -107,9 +107,8 @@ TURNSTILE_SITE_KEY=
         "site_key": "",
         "api_url": "https://challenges.cloudflare.com/turnstile/v0/siteverify"
     },
-    "pow_backend": "enabled",
     "pow_config": {
-        "secret": "",
+        "secret": "<long random string>",
         "difficulty": 20,
         "ttl_seconds": 300
     },
@@ -117,16 +116,16 @@ TURNSTILE_SITE_KEY=
 }
 ```
 
-`pow_backend` gates the embedded issuance endpoint (`/api/embedded/send`),
-which the Yivi app reaches directly without a Turnstile captcha. Set it to
-`"enabled"` to require a proof of work before an SMS is sent, or `"disabled"`
-(the default when the key is omitted) to keep the endpoint as it was. When
-enabled, `pow_config.secret` must be a long random string used to sign
-challenges; `difficulty` is the number of leading zero bits a solution must
-have (raise it to react to abuse without a client update, defaults to 20); and
-`ttl_seconds` is how long a challenge stays valid and single-use, defaults to
-300. Solved challenges are tracked with the same `storage_type` backend so the
-single-use guarantee holds across instances.
+`pow_config` gates the embedded issuance endpoint (`/api/embedded/send`),
+which the Yivi app reaches directly without a Turnstile captcha. Proof of work
+is enabled when `pow_config.secret` is set and disabled otherwise (including
+when the whole block is omitted), keeping the endpoint as it was by default.
+The `secret` must be a long random string used to sign challenges;
+`difficulty` is the number of leading zero bits a solution must have (raise it
+to react to abuse without a client update, defaults to 20); and `ttl_seconds`
+is how long a challenge stays valid and single-use, defaults to 300. Solved
+challenges are tracked with the same `storage_type` backend so the single-use
+guarantee holds across instances.
 
 `trusted_proxies` is an optional list of CIDR ranges (or bare IPs) of reverse
 proxies allowed to set the `X-Real-IP` header used for rate limiting. When a

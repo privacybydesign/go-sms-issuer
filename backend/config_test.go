@@ -40,6 +40,32 @@ func TestReadConfigFileLogLevel(t *testing.T) {
 	}
 }
 
+func TestCreatePowVerifierDerivedFromConfig(t *testing.T) {
+	// Proof of work is enabled purely by whether pow_config is configured
+	// (its secret is set); there is no separate on/off toggle.
+	tests := []struct {
+		name    string
+		config  string
+		enabled bool
+	}{
+		{"no pow_config disables", `{"storage_type": "memory"}`, false},
+		{"empty secret disables", `{"storage_type": "memory", "pow_config": {"secret": ""}}`, false},
+		{"secret set enables", `{"storage_type": "memory", "pow_config": {"secret": "long-random-secret"}}`, true},
+		{"secret with difficulty and ttl enables", `{"storage_type": "memory", "pow_config": {"secret": "long-random-secret", "difficulty": 12, "ttl_seconds": 120}}`, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config, err := readConfigFile(writeConfig(t, tt.config))
+			require.NoError(t, err)
+
+			verifier, err := createPowVerifier(&config)
+			require.NoError(t, err)
+			require.Equal(t, tt.enabled, verifier.Enabled())
+		})
+	}
+}
+
 func TestReadConfigFileRejectsUnknownLogLevel(t *testing.T) {
 	tests := []struct {
 		name   string

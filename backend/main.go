@@ -40,11 +40,10 @@ type Config struct {
 	TurnStileBackend       string                           `json:"turnstile_backend,omitempty"`
 	TurnStileConfiguration turnstile.TurnStileConfiguration `json:"turnstile_configuration"`
 
-	// PowBackend selects the proof-of-work verifier for the embedded issuance
-	// endpoint: "disabled" (default, keeps the endpoint captcha-free) or
-	// "enabled". PowConfig is only read when it is "enabled".
-	PowBackend string    `json:"pow_backend,omitempty"`
-	PowConfig  PowConfig `json:"pow_config"`
+	// PowConfig configures the proof-of-work gate for the embedded issuance
+	// endpoint. Proof of work is enabled when it is configured (its secret is
+	// set) and disabled otherwise, keeping the endpoint captcha-free by default.
+	PowConfig PowConfig `json:"pow_config"`
 
 	// TrustedProxies lists CIDR ranges of reverse proxies allowed to set the
 	// X-Real-IP header. When empty, X-Real-IP is never trusted and the
@@ -302,16 +301,12 @@ const (
 )
 
 func createPowVerifier(config *Config) (pow.Verifier, error) {
-	if config.PowBackend == "" || config.PowBackend == "disabled" {
+	// Proof of work is derived from pow_config alone: an empty secret means it
+	// is not configured, so the endpoint stays captcha-free. Existing configs
+	// without a pow_config keep working unchanged.
+	if config.PowConfig.Secret == "" {
 		slog.Info("proof of work is disabled for the embedded endpoint")
 		return pow.DisabledVerifier{}, nil
-	}
-	if config.PowBackend != "enabled" {
-		return nil, fmt.Errorf("invalid pow backend: %v", config.PowBackend)
-	}
-
-	if config.PowConfig.Secret == "" {
-		return nil, errors.New("pow_config.secret must be set when pow_backend is enabled")
 	}
 
 	difficulty := config.PowConfig.Difficulty
