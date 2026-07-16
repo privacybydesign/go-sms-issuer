@@ -225,6 +225,7 @@ func TestEmbeddedSendWorksWithoutPowWhenDisabled(t *testing.T) {
 
 	resp, err := makeEmbeddedSendRequest("+31612345678", "en", nil)
 	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
@@ -260,6 +261,7 @@ func TestEmbeddedPowChallengeAndSendHappyPath(t *testing.T) {
 
 	resp, err := makeEmbeddedSendRequest("+31612345678", "en", &solution)
 	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
@@ -272,11 +274,13 @@ func TestEmbeddedPowSolutionCannotBeReplayed(t *testing.T) {
 
 	resp, err := makeEmbeddedSendRequest("+31612345678", "en", &solution)
 	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// Reusing the same solved challenge must be rejected.
 	resp, err = makeEmbeddedSendRequest("+31612345678", "en", &solution)
 	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
