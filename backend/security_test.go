@@ -9,14 +9,20 @@ import (
 	"strings"
 	"testing"
 
+	"go-sms-issuer/pow"
+
 	"github.com/stretchr/testify/require"
 )
 
-// makeEmbeddedSendRequest posts to the captcha-free embedded endpoint.
-func makeEmbeddedSendRequest(phone, language string) (*http.Response, error) {
+// makeEmbeddedSendRequest posts to the embedded endpoint. Pass a solved
+// challenge in solution when proof of work is enabled, or nil otherwise.
+func makeEmbeddedSendRequest(phone, language string, solution *pow.Solution) (*http.Response, error) {
 	payload := EmbeddedIssuance_SendSmsPayload{
 		PhoneNumber: phone,
 		Language:    language,
+	}
+	if solution != nil {
+		payload.Pow = *solution
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -35,7 +41,7 @@ func TestEmbeddedSendSucceeds(t *testing.T) {
 	server := createAndStartTestServer(t, &smsReceiver, true)
 	defer stopServer(server)
 
-	resp, err := makeEmbeddedSendRequest("+31612345678", "en")
+	resp, err := makeEmbeddedSendRequest("+31612345678", "en", nil)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -48,7 +54,7 @@ func TestEmbeddedSendRejectsInvalidPhone(t *testing.T) {
 	server := createAndStartTestServer(t, nil, true)
 	defer stopServer(server)
 
-	resp, err := makeEmbeddedSendRequest("0612345678", "en")
+	resp, err := makeEmbeddedSendRequest("0612345678", "en", nil)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	body, err := readCompleteBodyToString(resp)

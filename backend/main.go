@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"go-sms-issuer/logging"
+	"go-sms-issuer/pow"
 	rate "go-sms-issuer/rate_limiter"
 	redis "go-sms-issuer/redis"
 	turnstile "go-sms-issuer/turnstile"
@@ -38,6 +39,12 @@ type Config struct {
 	RedisSentinelConfig    redis.RedisSentinelConfig        `json:"redis_sentinel_config"`
 	TurnStileBackend       string                           `json:"turnstile_backend,omitempty"`
 	TurnStileConfiguration turnstile.TurnStileConfiguration `json:"turnstile_configuration"`
+
+	// PowBackend selects the proof-of-work verifier for the embedded issuance
+	// endpoint: "disabled" (default, keeps the endpoint captcha-free) or
+	// "enabled". PowConfig is only read when it is "enabled".
+	PowBackend string    `json:"pow_backend,omitempty"`
+	PowConfig  PowConfig `json:"pow_config"`
 
 	// TrustedProxies lists CIDR ranges of reverse proxies allowed to set the
 	// X-Real-IP header. When empty, X-Real-IP is never trusted and the
@@ -88,6 +95,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	powVerifier, err := createPowVerifier(&config)
+	if err != nil {
+		slog.Error("failed to instantiate proof-of-work verifier", "error", err)
+		os.Exit(1)
+	}
+
 	sendSmsRateLimiter, err := createSendSmsRateLimiter(&config)
 	if err != nil {
 		slog.Error("failed to instantiate rate limiter for sending sms", "error", err)
@@ -122,6 +135,7 @@ func main() {
 		sendSmsRateLimiter:    sendSmsRateLimiter,
 		verifyCodeRateLimiter: verifyCodeRateLimiter,
 		turnstileVerifier:     turnstileVerifier,
+		powVerifier:           powVerifier,
 		trustedProxies:        trustedProxies,
 	}
 
@@ -270,6 +284,80 @@ func createTurnstileValidator(config *Config) (turnstile.TurnStileVerifier, erro
 		return turnstile.NewTurnStileValidator(config.TurnStileConfiguration), nil
 	}
 	return nil, fmt.Errorf("invalid turnstile backend")
+}
+
+// PowConfig configures the proof-of-work verifier. Difficulty is the number of
+// leading zero bits a solution's hash must have; it can be raised over time to
+// react to abuse without a client update. TtlSeconds bounds how long a
+// challenge is valid (and how long it is remembered as spent).
+type PowConfig struct {
+	Secret     string `json:"secret"`
+	Difficulty int    `json:"difficulty"`
+	TtlSeconds int    `json:"ttl_seconds"`
+}
+
+const (
+	defaultPowDifficulty = 20
+	defaultPowTtlSeconds = 300
+)
+
+func createPowVerifier(config *Config) (pow.Verifier, error) {
+	if config.PowBackend == "" || config.PowBackend == "disabled" {
+		slog.Info("proof of work is disabled for the embedded endpoint")
+		return pow.DisabledVerifier{}, nil
+	}
+	if config.PowBackend != "enabled" {
+		return nil, fmt.Errorf("invalid pow backend: %v", config.PowBackend)
+	}
+
+	if config.PowConfig.Secret == "" {
+		return nil, errors.New("pow_config.secret must be set when pow_backend is enabled")
+	}
+
+	difficulty := config.PowConfig.Difficulty
+	if difficulty == 0 {
+		difficulty = defaultPowDifficulty
+	}
+	ttlSeconds := config.PowConfig.TtlSeconds
+	if ttlSeconds == 0 {
+		ttlSeconds = defaultPowTtlSeconds
+	}
+
+	seenStore, err := createPowSeenStore(config)
+	if err != nil {
+		return nil, err
+	}
+
+	slog.Info("proof of work is enabled for the embedded endpoint", "difficulty", difficulty, "ttl_seconds", ttlSeconds)
+	return pow.NewHmacVerifier(
+		[]byte(config.PowConfig.Secret),
+		difficulty,
+		time.Duration(ttlSeconds)*time.Second,
+		seenStore,
+	)
+}
+
+// createPowSeenStore builds the single-use tracker, matching the storage
+// backend used elsewhere so it works across multiple issuer instances.
+func createPowSeenStore(config *Config) (pow.SeenStore, error) {
+	switch config.StorageType {
+	case "redis":
+		client, err := redis.NewRedisClient(&config.RedisConfig)
+		if err != nil {
+			return nil, err
+		}
+		return NewRedisSeenStore(client, config.RedisConfig.Namespace), nil
+	case "redis_sentinel":
+		client, err := redis.NewRedisSentinelClient(&config.RedisSentinelConfig)
+		if err != nil {
+			return nil, err
+		}
+		return NewRedisSeenStore(client, config.RedisSentinelConfig.Namespace), nil
+	case "memory":
+		return pow.NewInMemorySeenStore(), nil
+	default:
+		return nil, fmt.Errorf("%v is not a valid storage type", config.StorageType)
+	}
 }
 
 // parseTrustedProxies parses a list of CIDR strings into IP networks. A bare

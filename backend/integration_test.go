@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"go-sms-issuer/pow"
 	rate "go-sms-issuer/rate_limiter"
 	turnstile "go-sms-issuer/turnstile"
 
@@ -209,6 +210,104 @@ func TestSendingSendRequest(t *testing.T) {
 }
 
 // ------------------------------------------------------------------------
+// Embedded issuance proof-of-work
+
+func newTestPowVerifier(t *testing.T) *pow.HmacVerifier {
+	t.Helper()
+	v, err := pow.NewHmacVerifier([]byte("test-secret"), 8, time.Minute, pow.NewInMemorySeenStore())
+	require.NoError(t, err)
+	return v
+}
+
+func TestEmbeddedSendWorksWithoutPowWhenDisabled(t *testing.T) {
+	server := createAndStartTestServer(t, nil, true)
+	defer stopServer(server)
+
+	resp, err := makeEmbeddedSendRequest("+31612345678", "en", nil)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestEmbeddedPowChallengeReturns404WhenDisabled(t *testing.T) {
+	server := createAndStartTestServer(t, nil, true)
+	defer stopServer(server)
+
+	resp, err := http.Get("http://localhost:8081/api/embedded/pow-challenge")
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestEmbeddedSendRejectsMissingPowWhenEnabled(t *testing.T) {
+	server := createAndStartTestServer(t, nil, true, newTestPowVerifier(t))
+	defer stopServer(server)
+
+	resp, err := makeEmbeddedSendRequest("+31612345678", "en", nil)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	body, err := readCompleteBodyToString(resp)
+	require.NoError(t, err)
+	require.Equal(t, ErrorInvalidCaptcha, body)
+}
+
+func TestEmbeddedPowChallengeAndSendHappyPath(t *testing.T) {
+	server := createAndStartTestServer(t, nil, true, newTestPowVerifier(t))
+	defer stopServer(server)
+
+	challenge := fetchPowChallenge(t)
+	solution := solvePowChallenge(t, challenge)
+
+	resp, err := makeEmbeddedSendRequest("+31612345678", "en", &solution)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestEmbeddedPowSolutionCannotBeReplayed(t *testing.T) {
+	server := createAndStartTestServer(t, nil, true, newTestPowVerifier(t))
+	defer stopServer(server)
+
+	challenge := fetchPowChallenge(t)
+	solution := solvePowChallenge(t, challenge)
+
+	resp, err := makeEmbeddedSendRequest("+31612345678", "en", &solution)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Reusing the same solved challenge must be rejected.
+	resp, err = makeEmbeddedSendRequest("+31612345678", "en", &solution)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func fetchPowChallenge(t *testing.T) pow.Challenge {
+	t.Helper()
+	resp, err := http.Get("http://localhost:8081/api/embedded/pow-challenge")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	body, err := readCompleteBodyToString(resp)
+	require.NoError(t, err)
+	var challenge pow.Challenge
+	require.NoError(t, json.Unmarshal([]byte(body), &challenge))
+	return challenge
+}
+
+func solvePowChallenge(t *testing.T, c pow.Challenge) pow.Solution {
+	t.Helper()
+	for nonce := 0; ; nonce++ {
+		if pow.MeetsDifficulty(c.Challenge, nonce, c.Difficulty) {
+			return pow.Solution{
+				Challenge:  c.Challenge,
+				Difficulty: c.Difficulty,
+				Expiry:     c.Expiry,
+				Signature:  c.Signature,
+				Nonce:      nonce,
+			}
+		}
+	}
+}
+
+// ------------------------------------------------------------------------
 
 func readCompleteBodyToString(r *http.Response) (string, error) {
 	bytes, err := io.ReadAll(r.Body)
@@ -260,10 +359,17 @@ func (m *mockJwtCreator) CreateJwt(phone string) (string, error) {
 	return "JWT", nil
 }
 
-func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileSuccess bool) *Server {
+func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileSuccess bool, powVerifiers ...pow.Verifier) *Server {
 	smsSender := newMockSmsSender(smsChan)
 
 	turnstileVerifier := NewMockTurnStileVerifier(turnstileSuccess)
+
+	// Embedded proof of work is disabled unless a test opts in by passing a
+	// verifier, so existing tests keep exercising the captcha-free path.
+	var powVerifier pow.Verifier = pow.DisabledVerifier{}
+	if len(powVerifiers) > 0 {
+		powVerifier = powVerifiers[0]
+	}
 
 	sendSmsIpRateLimitingPolicy := rate.RateLimitingPolicy{
 		Window: time.Minute * 30,
@@ -303,6 +409,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileS
 			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), verifyCodePhoneRateLimitPolicy),
 		),
 		turnstileVerifier: turnstileVerifier,
+		powVerifier:       powVerifier,
 	}
 
 	config := ServerConfig{

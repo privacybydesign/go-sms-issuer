@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"go-sms-issuer/logging"
+	"go-sms-issuer/pow"
 	rate "go-sms-issuer/rate_limiter"
 	turnstile "go-sms-issuer/turnstile"
 	"io"
@@ -65,6 +66,7 @@ type ServerState struct {
 	sendSmsRateLimiter    *rate.TotalRateLimiter
 	verifyCodeRateLimiter *rate.TotalRateLimiter
 	turnstileVerifier     turnstile.TurnStileVerifier
+	powVerifier           pow.Verifier
 	// trustedProxies lists the CIDR ranges of reverse proxies we trust to
 	// set the X-Real-IP header. X-Real-IP is only honoured when the direct
 	// peer (RemoteAddr) falls within one of these ranges; otherwise the
@@ -134,6 +136,9 @@ func NewServer(state *ServerState, config ServerConfig) (*Server, error) {
 	})
 
 	// api to handle validating the phone number from within the Yivi app
+	router.HandleFunc("/api/embedded/pow-challenge", func(w http.ResponseWriter, r *http.Request) {
+		handleEmbeddedPowChallenge(state, w, r)
+	})
 	router.HandleFunc("/api/embedded/send", func(w http.ResponseWriter, r *http.Request) {
 		handleEmbeddedIssuanceSendSms(state, w, r)
 	})
@@ -169,8 +174,41 @@ func NewServer(state *ServerState, config ServerConfig) (*Server, error) {
 // -----------------------------------------------------------------------------------
 
 type EmbeddedIssuance_SendSmsPayload struct {
-	PhoneNumber string `json:"phone"`
-	Language    string `json:"language"`
+	PhoneNumber string       `json:"phone"`
+	Language    string       `json:"language"`
+	Pow         pow.Solution `json:"pow"`
+}
+
+// handleEmbeddedPowChallenge hands out a proof-of-work challenge for the
+// embedded endpoint. When proof of work is disabled it responds 404, which the
+// client reads as "no challenge required" and falls back to sending directly.
+func handleEmbeddedPowChallenge(state *ServerState, w http.ResponseWriter, r *http.Request) {
+	endpoint := r.URL.Path
+	ip := getIpAddressForRequest(r, state.trustedProxies)
+	logReceivedRequest(r, ip)
+
+	if !state.powVerifier.Enabled() {
+		http.NotFound(w, r)
+		return
+	}
+
+	challenge, err := state.powVerifier.NewChallenge()
+	if err != nil {
+		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to create proof-of-work challenge", err, "endpoint", endpoint)
+		return
+	}
+
+	payload, err := json.Marshal(challenge)
+	if err != nil {
+		respondWithErr(w, http.StatusInternalServerError, ErrorInternal, "failed to marshal proof-of-work challenge", err, "endpoint", endpoint)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(payload); err != nil {
+		slog.Error("failed to write body to http response", "error", err)
+	}
 }
 
 func handleEmbeddedIssuanceSendSms(state *ServerState, w http.ResponseWriter, r *http.Request) {
@@ -196,8 +234,16 @@ func handleEmbeddedIssuanceSendSms(state *ServerState, w http.ResponseWriter, r 
 		return
 	}
 
-	// the embedded path is captcha-free; the request comes from within the
-	// trusted Yivi app rather than the public web frontend
+	// The embedded path has no Turnstile captcha (the request comes from the
+	// Yivi app, not the public web frontend). When proof of work is enabled it
+	// gates the send instead: the client must submit a solved challenge.
+	if state.powVerifier.Enabled() {
+		if err := state.powVerifier.Verify(body.Pow); err != nil {
+			respondWithErr(w, http.StatusBadRequest, ErrorInvalidCaptcha, "invalid proof of work", err, "endpoint", endpoint)
+			return
+		}
+	}
+
 	sendSms(state, w, endpoint, ip, body.PhoneNumber, body.Language)
 }
 
