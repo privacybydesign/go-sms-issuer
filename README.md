@@ -116,3 +116,39 @@ proxies allowed to set the `X-Real-IP` header used for rate limiting. When a
 request's direct peer is not in one of these ranges the header is ignored and
 the peer address is used, so a client cannot spoof its rate-limit key. Leave it
 empty (or omit it) when the service is exposed directly without a proxy.
+
+### Embedded ALTCHA proof of work
+
+The embedded endpoint (`/api/embedded/send`) is called directly by the Yivi app
+and has no Turnstile captcha. An optional [ALTCHA](https://altcha.org) v2
+proof of work can gate it so automated bulk requests are more expensive. It is
+disabled by default; existing configs and clients keep working unchanged.
+
+```json
+"altcha_backend": "enforced",
+"altcha_config": {
+    "secret": "<long random string>",
+    "cost": 10000,
+    "key_prefix_length": 1,
+    "ttl_seconds": 300
+}
+```
+
+`altcha_backend` selects the rollout state:
+
+- `disabled` (or omitted): no challenge is handed out (`GET
+  /api/embedded/altcha-challenge` returns 404) and sends are accepted without a
+  solution.
+- `monitor`: challenges are handed out and solutions verified, but a send that
+  lacks or fails one is still accepted and logged (`event=altcha_monitor_miss`).
+  Use this to watch the missing-solution rate fall as updated apps roll out.
+- `enforced`: a send is rejected unless it carries a valid, unused solution.
+
+`secret` signs the challenges and must be set (and kept secret) for `monitor`
+and `enforced`. The algorithm is pinned to `PBKDF2/SHA-256` so the Go and Dart
+bindings interoperate; `cost` (PBKDF2 iterations per attempt) and
+`key_prefix_length` (leading derived-key bytes a solution must match) set the
+work a client spends and can be raised without a client update. Single-use
+tracking uses the configured `storage_type` (memory or Redis) so a solved
+challenge cannot be replayed across instances; under enforcement a storage
+error fails closed (the send is rejected).

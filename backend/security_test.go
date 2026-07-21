@@ -12,11 +12,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// makeEmbeddedSendRequest posts to the captcha-free embedded endpoint.
-func makeEmbeddedSendRequest(phone, language string) (*http.Response, error) {
+// makeEmbeddedSendRequest posts to the embedded endpoint. An optional
+// base64-encoded ALTCHA solution payload can be supplied for the proof-of-work
+// tests; callers that omit it exercise the captcha-free path.
+func makeEmbeddedSendRequest(phone, language string, altchaPayload ...string) (*http.Response, error) {
 	payload := EmbeddedIssuance_SendSmsPayload{
 		PhoneNumber: phone,
 		Language:    language,
+	}
+	if len(altchaPayload) > 0 {
+		payload.Altcha = altchaPayload[0]
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
