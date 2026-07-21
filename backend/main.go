@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"go-sms-issuer/altcha"
 	"go-sms-issuer/logging"
 	rate "go-sms-issuer/rate_limiter"
 	redis "go-sms-issuer/redis"
@@ -38,6 +39,12 @@ type Config struct {
 	RedisSentinelConfig    redis.RedisSentinelConfig        `json:"redis_sentinel_config"`
 	TurnStileBackend       string                           `json:"turnstile_backend,omitempty"`
 	TurnStileConfiguration turnstile.TurnStileConfiguration `json:"turnstile_configuration"`
+
+	// AltchaBackend selects the ALTCHA proof-of-work rollout state for the
+	// embedded endpoint: "disabled" (default), "monitor" or "enforced". When
+	// absent the endpoint stays captcha-free, so existing configs are unchanged.
+	AltchaBackend string       `json:"altcha_backend,omitempty"`
+	AltchaConfig  AltchaConfig `json:"altcha_config"`
 
 	// TrustedProxies lists CIDR ranges of reverse proxies allowed to set the
 	// X-Real-IP header. When empty, X-Real-IP is never trusted and the
@@ -88,6 +95,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	altchaVerifier, err := createAltchaVerifier(&config)
+	if err != nil {
+		slog.Error("failed to instantiate altcha verifier", "error", err)
+		os.Exit(1)
+	}
+
 	sendSmsRateLimiter, err := createSendSmsRateLimiter(&config)
 	if err != nil {
 		slog.Error("failed to instantiate rate limiter for sending sms", "error", err)
@@ -122,6 +135,7 @@ func main() {
 		sendSmsRateLimiter:    sendSmsRateLimiter,
 		verifyCodeRateLimiter: verifyCodeRateLimiter,
 		turnstileVerifier:     turnstileVerifier,
+		altchaVerifier:        altchaVerifier,
 		trustedProxies:        trustedProxies,
 	}
 
@@ -270,6 +284,103 @@ func createTurnstileValidator(config *Config) (turnstile.TurnStileVerifier, erro
 		return turnstile.NewTurnStileValidator(config.TurnStileConfiguration), nil
 	}
 	return nil, fmt.Errorf("invalid turnstile backend")
+}
+
+// AltchaConfig configures the ALTCHA proof-of-work verifier. Cost is the number
+// of PBKDF2 iterations per attempt and KeyPrefixLength is how many leading
+// bytes of the derived key a solution must match; together they set the work a
+// client must spend and can be raised over time to react to abuse without a
+// client update. TtlSeconds bounds how long a challenge is valid (and is
+// remembered as spent). Algorithm is pinned to PBKDF2/SHA-256; setting it to
+// anything else is rejected at startup.
+type AltchaConfig struct {
+	Secret          string `json:"secret"`
+	Algorithm       string `json:"algorithm,omitempty"`
+	Cost            int    `json:"cost"`
+	KeyPrefixLength int    `json:"key_prefix_length"`
+	TtlSeconds      int    `json:"ttl_seconds"`
+}
+
+const (
+	// Conservative defaults. The difficulty knobs (cost, key_prefix_length)
+	// still need tuning against real devices before enforcement; see the
+	// open items in privacybydesign/irmamobile#667.
+	defaultAltchaCost            = 10000
+	defaultAltchaKeyPrefixLength = 1
+	defaultAltchaTtlSeconds      = 300
+)
+
+func createAltchaVerifier(config *Config) (altcha.Verifier, error) {
+	state, err := altcha.ParseEnforcementState(config.AltchaBackend)
+	if err != nil {
+		return nil, err
+	}
+
+	if state == altcha.Disabled {
+		slog.Info("altcha proof of work is disabled for the embedded endpoint")
+		return altcha.DisabledVerifier{}, nil
+	}
+
+	if config.AltchaConfig.Secret == "" {
+		return nil, fmt.Errorf("altcha_config.secret must be set when altcha_backend is %q", config.AltchaBackend)
+	}
+	// The algorithm is pinned so the Go and Dart bindings interoperate and a
+	// client cannot request a cheaper KDF; reject any other configured value.
+	if config.AltchaConfig.Algorithm != "" && config.AltchaConfig.Algorithm != altcha.PinnedAlgorithm {
+		return nil, fmt.Errorf("altcha_config.algorithm must be %q, got %q", altcha.PinnedAlgorithm, config.AltchaConfig.Algorithm)
+	}
+
+	cost := config.AltchaConfig.Cost
+	if cost == 0 {
+		cost = defaultAltchaCost
+	}
+	keyPrefixLength := config.AltchaConfig.KeyPrefixLength
+	if keyPrefixLength == 0 {
+		keyPrefixLength = defaultAltchaKeyPrefixLength
+	}
+	ttlSeconds := config.AltchaConfig.TtlSeconds
+	if ttlSeconds == 0 {
+		ttlSeconds = defaultAltchaTtlSeconds
+	}
+
+	seenStore, err := createAltchaSeenStore(config)
+	if err != nil {
+		return nil, err
+	}
+
+	slog.Info("altcha proof of work is enabled for the embedded endpoint",
+		"state", config.AltchaBackend, "cost", cost, "key_prefix_length", keyPrefixLength, "ttl_seconds", ttlSeconds)
+	return altcha.NewHmacVerifier(
+		state,
+		config.AltchaConfig.Secret,
+		cost,
+		keyPrefixLength,
+		time.Duration(ttlSeconds)*time.Second,
+		seenStore,
+	)
+}
+
+// createAltchaSeenStore builds the single-use tracker, matching the storage
+// backend used elsewhere so it works across multiple issuer instances.
+func createAltchaSeenStore(config *Config) (altcha.SeenStore, error) {
+	switch config.StorageType {
+	case "redis":
+		client, err := redis.NewRedisClient(&config.RedisConfig)
+		if err != nil {
+			return nil, err
+		}
+		return NewRedisSeenStore(client, config.RedisConfig.Namespace), nil
+	case "redis_sentinel":
+		client, err := redis.NewRedisSentinelClient(&config.RedisSentinelConfig)
+		if err != nil {
+			return nil, err
+		}
+		return NewRedisSeenStore(client, config.RedisSentinelConfig.Namespace), nil
+	case "memory":
+		return altcha.NewInMemorySeenStore(), nil
+	default:
+		return nil, fmt.Errorf("%v is not a valid storage type", config.StorageType)
+	}
 }
 
 // parseTrustedProxies parses a list of CIDR strings into IP networks. A bare

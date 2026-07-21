@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -9,9 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"go-sms-issuer/altcha"
 	rate "go-sms-issuer/rate_limiter"
 	turnstile "go-sms-issuer/turnstile"
 
+	altchalib "github.com/altcha-org/altcha-lib-go/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -209,6 +212,124 @@ func TestSendingSendRequest(t *testing.T) {
 }
 
 // ------------------------------------------------------------------------
+// Embedded issuance ALTCHA proof of work
+
+func newTestAltchaVerifier(t *testing.T, state altcha.EnforcementState) *altcha.HmacVerifier {
+	t.Helper()
+	// A tiny cost and single-byte prefix keep the round-trip fast in tests
+	// while still exercising the full create/solve/verify path.
+	v, err := altcha.NewHmacVerifier(state, "test-secret", 50, 1, time.Minute, altcha.NewInMemorySeenStore())
+	require.NoError(t, err)
+	return v
+}
+
+func TestEmbeddedSendWorksWithoutAltchaWhenDisabled(t *testing.T) {
+	server := createAndStartTestServer(t, nil, true)
+	defer stopServer(server)
+
+	resp, err := makeEmbeddedSendRequest("+31612345678", "en")
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestEmbeddedAltchaChallengeReturns404WhenDisabled(t *testing.T) {
+	server := createAndStartTestServer(t, nil, true)
+	defer stopServer(server)
+
+	resp, err := http.Get("http://localhost:8081/api/embedded/altcha-challenge")
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestEmbeddedSendRejectsMissingAltchaWhenEnforced(t *testing.T) {
+	server := createAndStartTestServer(t, nil, true, newTestAltchaVerifier(t, altcha.Enforced))
+	defer stopServer(server)
+
+	resp, err := makeEmbeddedSendRequest("+31612345678", "en")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	body, err := readCompleteBodyToString(resp)
+	require.NoError(t, err)
+	require.Equal(t, ErrorInvalidCaptcha, body)
+}
+
+func TestEmbeddedAltchaChallengeAndSendHappyPath(t *testing.T) {
+	server := createAndStartTestServer(t, nil, true, newTestAltchaVerifier(t, altcha.Enforced))
+	defer stopServer(server)
+
+	payload := solveAltchaChallenge(t)
+
+	resp, err := makeEmbeddedSendRequest("+31612345678", "en", payload)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestEmbeddedAltchaSolutionCannotBeReplayed(t *testing.T) {
+	server := createAndStartTestServer(t, nil, true, newTestAltchaVerifier(t, altcha.Enforced))
+	defer stopServer(server)
+
+	payload := solveAltchaChallenge(t)
+
+	resp, err := makeEmbeddedSendRequest("+31612345678", "en", payload)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Reusing the same solved challenge must be rejected.
+	resp, err = makeEmbeddedSendRequest("+31612345678", "en", payload)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestEmbeddedSendAllowsMissingAltchaInMonitorMode(t *testing.T) {
+	// Monitor mode hands out challenges but still accepts a send that lacks a
+	// solution, so old apps keep working during the measured grace window.
+	server := createAndStartTestServer(t, nil, true, newTestAltchaVerifier(t, altcha.Monitor))
+	defer stopServer(server)
+
+	// The challenge endpoint is live in monitor mode.
+	resp, err := http.Get("http://localhost:8081/api/embedded/altcha-challenge")
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// A send without a solution is still accepted.
+	resp, err = makeEmbeddedSendRequest("+31612345678", "en")
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+// solveAltchaChallenge fetches a challenge from the running server and returns a
+// base64-encoded solved ALTCHA payload, mirroring what the app client submits.
+func solveAltchaChallenge(t *testing.T) string {
+	t.Helper()
+	resp, err := http.Get("http://localhost:8081/api/embedded/altcha-challenge")
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var challenge altchalib.Challenge
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&challenge))
+
+	solution, err := altchalib.SolveChallenge(altchalib.SolveChallengeOptions{
+		Challenge: challenge,
+		DeriveKey: altchalib.DeriveKeyPBKDF2(),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, solution)
+
+	raw, err := json.Marshal(altchalib.Payload{Challenge: challenge, Solution: *solution})
+	require.NoError(t, err)
+	return base64.StdEncoding.EncodeToString(raw)
+}
+
+// ------------------------------------------------------------------------
 
 func readCompleteBodyToString(r *http.Response) (string, error) {
 	bytes, err := io.ReadAll(r.Body)
@@ -260,10 +381,17 @@ func (m *mockJwtCreator) CreateJwt(phone string) (string, error) {
 	return "JWT", nil
 }
 
-func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileSuccess bool) *Server {
+func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileSuccess bool, altchaVerifiers ...altcha.Verifier) *Server {
 	smsSender := newMockSmsSender(smsChan)
 
 	turnstileVerifier := NewMockTurnStileVerifier(turnstileSuccess)
+
+	// The embedded proof of work is disabled unless a test opts in by passing a
+	// verifier, so existing tests keep exercising the captcha-free path.
+	var altchaVerifier altcha.Verifier = altcha.DisabledVerifier{}
+	if len(altchaVerifiers) > 0 {
+		altchaVerifier = altchaVerifiers[0]
+	}
 
 	sendSmsIpRateLimitingPolicy := rate.RateLimitingPolicy{
 		Window: time.Minute * 30,
@@ -303,6 +431,7 @@ func createAndStartTestServer(t *testing.T, smsChan *chan smsMessage, turnstileS
 			rate.NewInMemoryRateLimiter(rate.NewSystemClock(), verifyCodePhoneRateLimitPolicy),
 		),
 		turnstileVerifier: turnstileVerifier,
+		altchaVerifier:    altchaVerifier,
 	}
 
 	config := ServerConfig{
