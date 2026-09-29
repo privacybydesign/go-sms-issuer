@@ -61,6 +61,29 @@ func TestEmbeddedSendRejectsInvalidPhone(t *testing.T) {
 	require.Equal(t, ErrorPhoneNumberFormat, body)
 }
 
+func TestEmbeddedSendRejectsBlockedNetnumbers(t *testing.T) {
+	server := createAndStartTestServer(t, nil, true)
+	defer stopServer(server)
+
+	for _, blocked := range []string{"+31970123456789", "+31974123456", "+31978123456"} {
+		resp, err := makeEmbeddedSendRequest(blocked, "en")
+		require.NoError(t, err)
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode, "phone %q should be rejected", blocked)
+		body, err := readCompleteBodyToString(resp)
+		require.NoError(t, err)
+		require.Equal(t, ErrorPhoneNumberNotAllowed, body, "phone %q", blocked)
+	}
+}
+
+func TestIsAllowedEmbeddedPhone(t *testing.T) {
+	for _, allowed := range []string{"+31612345678", "+31969123456", "+31979123456", "+3197", "+32970123456", "+131970123456"} {
+		require.True(t, isAllowedEmbeddedPhone(allowed), "phone %q should be allowed", allowed)
+	}
+	for _, blocked := range []string{"+31970123456", "+31975123456", "+31978123456"} {
+		require.False(t, isAllowedEmbeddedPhone(blocked), "phone %q should be blocked", blocked)
+	}
+}
+
 func TestSendRejectsInvalidPhoneNumber(t *testing.T) {
 	server := createAndStartTestServer(t, nil, true)
 	defer stopServer(server)
