@@ -38,6 +38,16 @@ func isValidE164(phone string) bool {
 	return e164Pattern.MatchString(phone)
 }
 
+// blockedEmbeddedNetnumberPattern matches Dutch (+31) numbers whose netnumber
+// (the first three digits after the country code) is in the range 970-978.
+var blockedEmbeddedNetnumberPattern = regexp.MustCompile(`^\+3197[0-8]`)
+
+// isAllowedEmbeddedPhone reports whether the embedded send policy permits
+// sending an SMS to phone.
+func isAllowedEmbeddedPhone(phone string) bool {
+	return !blockedEmbeddedNetnumberPattern.MatchString(phone)
+}
+
 // same error message bodies as the old Java code
 const ErrorPhoneNumberFormat = "error:phone-number-format"
 const ErrorRateLimit = "error:ratelimit"
@@ -47,6 +57,7 @@ const ErrorInternal = "error:internal"
 const ErrorBadRequest = "error:bad-request"
 const ErrorSendingSms = "error:sending-sms"
 const ErrorInvalidCaptcha = "error:invalid-captcha"
+const ErrorPhoneNumberNotAllowed = "error:phone-number-not-allowed"
 
 type ServerConfig struct {
 	Host           string `json:"host"`
@@ -259,6 +270,11 @@ func handleEmbeddedIssuanceSendSms(state *ServerState, w http.ResponseWriter, r 
 		}
 	case altcha.Disabled:
 		// no proof of work required
+	}
+
+	if !isAllowedEmbeddedPhone(body.PhoneNumber) {
+		respondWithErr(w, http.StatusBadRequest, ErrorPhoneNumberNotAllowed, "phone number not allowed by embedded send policy", nil, "endpoint", endpoint, "phone", logging.MaskPhone(body.PhoneNumber))
+		return
 	}
 
 	sendSms(state, w, endpoint, ip, body.PhoneNumber, body.Language)
