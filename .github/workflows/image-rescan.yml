@@ -10,7 +10,7 @@ permissions: {}
 
 jobs:
   rescan:
-    uses: privacybydesign/github-workflows/.github/workflows/image-rescan.yml@b6d889469f600554685deaa6ea9105a289c447fb # main
+    uses: privacybydesign/github-workflows/.github/workflows/image-rescan.yml@57ef42a88f7f7b8f4ecf291e5f87caad8104ed66 # v1.1.0
     permissions:
       contents: read
       packages: read
