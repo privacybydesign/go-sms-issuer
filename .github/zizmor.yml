@@ -1,4 +1,4 @@
-# Shared zizmor policy. Copy to .github/zizmor.yml in consuming repositories.
+# zizmor policy for the shared workflow-lint job.
 rules:
   unpinned-uses:
     config:
