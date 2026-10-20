@@ -1,0 +1,20 @@
+# Weekly re-scan of the PUBLISHED images (all platforms) for new CVEs.
+name: Image rescan
+
+on:
+  schedule:
+    - cron: "23 6 * * 1" # Mondays 06:23 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  rescan:
+    uses: privacybydesign/github-workflows/.github/workflows/image-rescan.yml@57ef42a88f7f7b8f4ecf291e5f87caad8104ed66 # v1.1.0
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    with:
+      tags: edge latest-release
+      severity-cutoff: high
