@@ -1,0 +1,20 @@
+# Canary for the shared image-rescan.yml: scans the PUBLISHED images.
+# The pull_request trigger is only there so the canary PR exercises it.
+name: Shared image rescan (canary)
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  rescan:
+    uses: privacybydesign/github-workflows/.github/workflows/image-rescan.yml@main
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    with:
+      tags: edge latest-release
+      severity-cutoff: high
