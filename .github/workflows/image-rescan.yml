@@ -10,7 +10,7 @@ permissions: {}
 
 jobs:
   rescan:
-    uses: privacybydesign/github-workflows/.github/workflows/image-rescan.yml@rhensen/yiv-401-moving-v1
+    uses: privacybydesign/github-workflows/.github/workflows/image-rescan.yml@v1
     permissions:
       contents: read
       packages: read

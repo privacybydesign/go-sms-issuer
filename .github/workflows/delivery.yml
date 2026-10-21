@@ -14,7 +14,7 @@ permissions: {}
 
 jobs:
   docker:
-    uses: privacybydesign/github-workflows/.github/workflows/docker-publish.yml@rhensen/yiv-401-moving-v1
+    uses: privacybydesign/github-workflows/.github/workflows/docker-publish.yml@v1
     permissions:
       contents: read
       packages: write
