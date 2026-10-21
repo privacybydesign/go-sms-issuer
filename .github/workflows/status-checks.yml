@@ -15,7 +15,7 @@ permissions: {}
 
 jobs:
   frontend:
-    uses: privacybydesign/github-workflows/.github/workflows/node-checks.yml@57ef42a88f7f7b8f4ecf291e5f87caad8104ed66 # v1.1.0
+    uses: privacybydesign/github-workflows/.github/workflows/node-checks.yml@rhensen/yiv-401-moving-v1
     permissions:
       contents: read
     with:
@@ -24,7 +24,7 @@ jobs:
       ignore-scripts: true
 
   go:
-    uses: privacybydesign/github-workflows/.github/workflows/go-checks.yml@57ef42a88f7f7b8f4ecf291e5f87caad8104ed66 # v1.1.0
+    uses: privacybydesign/github-workflows/.github/workflows/go-checks.yml@rhensen/yiv-401-moving-v1
     permissions:
       contents: read
     with:
@@ -39,7 +39,7 @@ jobs:
   # Builds and scans the image without pushing it; Delivery pushes from main.
   docker:
     if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
-    uses: privacybydesign/github-workflows/.github/workflows/docker-publish.yml@57ef42a88f7f7b8f4ecf291e5f87caad8104ed66 # v1.1.0
+    uses: privacybydesign/github-workflows/.github/workflows/docker-publish.yml@rhensen/yiv-401-moving-v1
     permissions:
       contents: read
       packages: write
@@ -53,7 +53,7 @@ jobs:
       DOCKER_BUILD_ARGS: TURNSTILE_SITE_KEY=${{ secrets.TURNSTILE_SITE_KEY }}
 
   codeql:
-    uses: privacybydesign/github-workflows/.github/workflows/codeql.yml@57ef42a88f7f7b8f4ecf291e5f87caad8104ed66 # v1.1.0
+    uses: privacybydesign/github-workflows/.github/workflows/codeql.yml@rhensen/yiv-401-moving-v1
     permissions:
       contents: read
       security-events: write
@@ -65,13 +65,13 @@ jobs:
 
   dependency-review:
     if: github.event_name == 'pull_request'
-    uses: privacybydesign/github-workflows/.github/workflows/dependency-review.yml@57ef42a88f7f7b8f4ecf291e5f87caad8104ed66 # v1.1.0
+    uses: privacybydesign/github-workflows/.github/workflows/dependency-review.yml@rhensen/yiv-401-moving-v1
     permissions:
       contents: read
       pull-requests: write
 
   workflow-lint:
-    uses: privacybydesign/github-workflows/.github/workflows/workflow-lint.yml@57ef42a88f7f7b8f4ecf291e5f87caad8104ed66 # v1.1.0
+    uses: privacybydesign/github-workflows/.github/workflows/workflow-lint.yml@rhensen/yiv-401-moving-v1
     permissions:
       contents: read
 
