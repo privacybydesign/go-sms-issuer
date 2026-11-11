@@ -4,7 +4,7 @@
 # served HTML, so passing it via ARG is correct. The matching secret key
 # lives only in backend config.
 
-FROM node:24@sha256:6449e19d8184d84062525b6a7524def03146c2cb04a7f08b076680d0e8e4240a AS frontend-build
+FROM node:25@sha256:78839ac448c23517f8eab2e8f7943d9b4f73979eb7f8bed2c73dbf72ff869e7b AS frontend-build
 WORKDIR /app/frontend
 COPY frontend .
 
@@ -18,7 +18,7 @@ RUN npm run build
 
 # -----------------------------------------------------
 
-FROM golang:1.26.11@sha256:7af425da11f4fc1a9308eb704369e3f6d1c44e35bac0f874a59ade3f20fdc07e AS backend-build
+FROM golang:1.27.0@sha256:4013ae0f9e7994f8535c58c811f8f863fbed38b72e0d51e6592156f758d66146 AS backend-build
 WORKDIR /app/backend
 COPY backend .
 RUN go mod download
